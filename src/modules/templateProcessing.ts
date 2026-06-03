@@ -33,3 +33,11 @@ Handlebars.registerHelper('dateFormat', (date, format) => {
 
   return formattedDate;
 });
+
+Handlebars.registerHelper('padIndex', (index) => {
+  return String(index).padStart(3, '0');
+});
+
+Handlebars.registerHelper('displayIndex', (index) => {
+  return Number(index) + 1;
+});

@@ -1,6 +1,7 @@
 import type { App, Vault, TFolder, TFile } from 'obsidian';
-import path from 'path';
 import type { IBookHighlightsPluginSettings } from '../types';
+
+const joinPath = (...parts: string[]): string => parts.join('/').replace(/\/+/g, '/');
 
 export class VaultManagement {
   private app: App;
@@ -24,7 +25,7 @@ export class VaultManagement {
   }
 
   getFilePath(filenameTemplate: string): TFile | null {
-    const filePath = path.join(this.getHighlightsFolder(), `${filenameTemplate}.md`);
+    const filePath = joinPath(this.getHighlightsFolder(), `${filenameTemplate}.md`);
 
     const result = this.vault.getFileByPath(filePath);
 
@@ -39,14 +40,48 @@ export class VaultManagement {
     }
   }
 
+  async ensureFolder(folderPath: string): Promise<void> {
+    const normalizedParts = folderPath.split('/').filter(Boolean);
+    let currentPath = '';
+
+    for (const part of normalizedParts) {
+      currentPath = currentPath ? joinPath(currentPath, part) : part;
+
+      if (!this.vault.getFolderByPath(currentPath)) {
+        await this.vault.createFolder(currentPath);
+      }
+    }
+  }
+
   async createBookFile(filename: string, content: string): Promise<void> {
-    const filePath = path.join(this.getHighlightsFolder(), `${filename}.md`);
+    const filePath = joinPath(this.getHighlightsFolder(), `${filename}.md`);
 
     await this.vault.create(filePath, content);
   }
 
   async modifyBookFile(file: TFile, content: string): Promise<void> {
     await this.vault.modify(file, content);
+  }
+
+  async upsertFile(filePath: string, content: string): Promise<void> {
+    const existingFile = this.vault.getFileByPath(filePath);
+
+    if (existingFile) {
+      await this.vault.modify(existingFile, content);
+      return;
+    }
+
+    await this.vault.create(filePath, content);
+  }
+
+  async readFileIfExists(filePath: string): Promise<string> {
+    const existingFile = this.vault.getFileByPath(filePath);
+
+    if (!existingFile) {
+      return '';
+    }
+
+    return this.vault.cachedRead(existingFile);
   }
 
   async backupAllHighlights(): Promise<void> {
@@ -64,6 +99,6 @@ export class VaultManagement {
 
   async backupBookFile(file: TFile): Promise<void> {
     const backupFileName = `${file.basename}-bk-${Date.now()}.md`;
-    await this.vault.adapter.rename(file.path, path.join(this.getHighlightsFolder(), backupFileName));
+    await this.vault.adapter.rename(file.path, joinPath(this.getHighlightsFolder(), backupFileName));
   }
 }

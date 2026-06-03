@@ -1,10 +1,10 @@
 {
-  "id": "apple-books-import-highlights",
-  "name": "Apple Books - Import Highlights",
+  "id": "apple-books-knowledge-cards",
+  "name": "Apple Books Knowledge Cards",
   "version": "1.8.1",
   "minAppVersion": "1.5.7",
-  "description": "Import your Apple Books highlights and notes to Obsidian.",
-  "author": "bandantonio",
-  "authorUrl": "https://github.com/bandantonio",
-  "isDesktopOnly": true
+  "description": "Import Apple Books highlights as structured notes and knowledge cards.",
+  "author": "jinjideweima, based on bandantonio",
+  "authorUrl": "https://github.com/jinjideweima",
+  "isDesktopOnly": false
 }

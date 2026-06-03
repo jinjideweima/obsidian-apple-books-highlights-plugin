@@ -1,6 +1,7 @@
-import { spawn } from 'child_process';
+import { requireNodeModule } from './nodeModules';
 
 export const executeDbQuery = async <T>(dbPath: string, sqlQuery: string): Promise<T> => {
+  const { spawn } = requireNodeModule<typeof import('child_process')>('child_process');
   const dbQueryResult = spawn('sqlite3', [dbPath, sqlQuery, '-json']);
 
   const chunks: Buffer[] = [];

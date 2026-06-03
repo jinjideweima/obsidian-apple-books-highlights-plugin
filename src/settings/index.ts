@@ -2,24 +2,36 @@ import { type App, Notice, PluginSettingTab, Setting } from 'obsidian';
 import type IBookHighlightsPlugin from '../../main';
 import { type IBookHighlightsPluginSettings, IHighlightsSortingCriterion } from '../types';
 
-export const defaultTemplate = `Title:: 📕 {{{bookTitle}}}
-Author:: {{{bookAuthor}}}
-Link:: [Apple Books Link](ibooks://assetid/{{bookId}})
+export const defaultTemplate = `---
+type: book
+title: "{{{bookTitle}}}"
+author: "{{{bookAuthor}}}"
+source: Apple Books
+book_id: "{{bookId}}"
+annotation_count: {{annotations.length}}
+status: "{{#if bookFinishedDate}}已读{{else}}在读{{/if}}"
+cover: "[[附件/书封/{{{bookTitle}}} - {{{bookAuthor}}}.jpg]]"
+cssclasses:
+  - wide-apple-book
+tags:
+  - book
+---
 
-## Annotations
-
-Number of annotations:: {{annotations.length}}
-
+<details class="abkc-note-toc-details">
+<summary>摘录目录</summary>
+<div class="abkc-note-toc">
 {{#each annotations}}
-----
-
-- 📖 Chapter:: {{#if chapter}}{{{chapter}}}{{else}}N/A{{/if}}
-- 🔖 Context:: {{#if contextualText}}{{{contextualText}}}{{else}}N/A{{/if}}
-- 🎯 Highlight:: {{{highlight}}}
-- 📝 Note:: {{#if note}}{{{note}}}{{else}}N/A{{/if}}
-- 📙 Highlight Link:: {{#if highlightLocation}}[Apple Books Highlight Link](ibooks://assetid/{{../bookId}}#{{highlightLocation}}){{else}}N/A{{/if}}
-
+<a href="#摘录-{{displayIndex @index}}">摘录 {{displayIndex @index}}</a>
 {{/each}}
+</div>
+</details>
+
+## 本书摘录
+
+\`\`\`apple-books-board
+book_id: {{bookId}}
+theme: receipt
+\`\`\`
 `;
 
 const allowedFilenameTemplateVariables = [
@@ -31,7 +43,7 @@ const allowedFilenameTemplateVariables = [
 ];
 
 export const defaultPluginSettings: IBookHighlightsPluginSettings = {
-  highlightsFolder: 'ibooks-highlights',
+  highlightsFolder: '10 Sources/ibooks-dev',
   backup: false,
   importOnStart: false,
   highlightsSortingCriterion: 'creationDateOldToNew',
@@ -68,13 +80,13 @@ export class IBookHighlightsSettingTab extends PluginSettingTab {
 
   addHighlightsFolderSetting(containerEl: HTMLElement): void {
     const folder = new Setting(containerEl)
-      .setName('Highlights folder')
-      .setDesc('A folder (within the root of your vault) where you want to save imported highlights')
+      .setName('导入目录')
+      .setDesc('保存 Apple Books 书籍主笔记和摘录卡片的 Vault 内目录。')
       .setClass('ibooks-highlights-folder');
 
     folder.addText((text) =>
       text
-        .setPlaceholder('Folder to save highlights')
+        .setPlaceholder('保存导入内容的目录')
         .setValue(this.plugin.settings.highlightsFolder)
         .onChange(async (value) => {
           if (!value) {
@@ -92,8 +104,8 @@ export class IBookHighlightsSettingTab extends PluginSettingTab {
 
   addImportOnStartSetting(containerEl: HTMLElement): void {
     new Setting(containerEl)
-      .setName('Import highlights on start')
-      .setDesc('Import all highlights from all your books when Obsidian starts (requires confirmation on each start if backup is disabled)')
+      .setName('启动时导入')
+      .setDesc('Obsidian 启动时自动导入所有 Apple Books 摘录。')
       .addToggle((toggle) => {
         toggle.setValue(this.plugin.settings.importOnStart).onChange(async (value) => {
           this.plugin.settings.importOnStart = value;
@@ -105,21 +117,21 @@ export class IBookHighlightsSettingTab extends PluginSettingTab {
 
   addBackupSetting(containerEl: HTMLElement): void {
     new Setting(containerEl)
-      .setName('Backup highlights')
+      .setName('导入前备份')
       .setDesc(
         createFragment((el) => {
-          el.appendText('Backup highlights before import.');
+          el.appendText('导入前备份已有摘录。');
           el.createEl('br');
-          el.appendText('- Folder template: <highlights-folder>-bk-<timestamp> (For example, ibooks-highlights-bk-1704060001).');
+          el.appendText('- 文件夹格式：<导入目录>-bk-<时间戳>');
           el.createEl('br');
-          el.appendText('- File template: <highlights-file>-bk-<timestamp> (For example, Building a Second Brain-bk-1704060001).');
+          el.appendText('- 文件格式：<书籍文件>-bk-<时间戳>');
         }),
       )
       .addToggle((toggle) => {
         toggle.setValue(this.plugin.settings.backup).onChange(async (value) => {
           if (!value) {
             // oxlint-disable-next-line
-            new Notice('Disabling backups imposes a risk of data loss. Please use with caution.', 0);
+            new Notice('关闭备份可能带来数据丢失风险，请谨慎使用。', 0);
           }
           this.plugin.settings.backup = value;
 
@@ -130,16 +142,16 @@ export class IBookHighlightsSettingTab extends PluginSettingTab {
 
   addHighlightsSortingCriterionSetting(containerEl: HTMLElement): void {
     new Setting(containerEl)
-      .setName('Highlights sorting criterion')
-      .setDesc('Sort highlights by a specific criterion. Default: By creation date (from oldest to newest)')
+      .setName('摘录排序方式')
+      .setDesc('导入时如何排序摘录。默认建议使用“按书中位置”。')
       .setClass('ibooks-highlights-sorting')
       .addDropdown((dropdown) => {
         const options: Record<IHighlightsSortingCriterion, string> = {
-          creationDateOldToNew: 'By creation date (from oldest to newest)',
-          creationDateNewToOld: 'By creation date (from newest to oldest)',
-          lastModifiedDateOldToNew: 'By modification date (from oldest to newest)',
-          lastModifiedDateNewToOld: 'By modification date (from newest to oldest)',
-          book: 'By location in a book',
+          creationDateOldToNew: '按创建时间：从旧到新',
+          creationDateNewToOld: '按创建时间：从新到旧',
+          lastModifiedDateOldToNew: '按修改时间：从旧到新',
+          lastModifiedDateNewToOld: '按修改时间：从新到旧',
+          book: '按书中位置',
         };
 
         dropdown
@@ -155,12 +167,12 @@ export class IBookHighlightsSettingTab extends PluginSettingTab {
 
   addTemplateSetting(containerEl: HTMLElement): void {
     new Setting(containerEl)
-      .setName('Template')
-      .setDesc('Template for highlight files')
+      .setName('书籍主笔记模板')
+      .setDesc('用于生成每本书主笔记的模板。独立摘录卡片由插件自动生成。')
       .setClass('ibooks-highlights-template')
       .addTextArea((text) => {
         text
-          .setPlaceholder('Template')
+          .setPlaceholder('书籍主笔记模板')
           .setValue(this.plugin.settings.template)
           .onChange(async (value) => {
             const valueToSet = value === '' ? defaultTemplate : value;
@@ -174,12 +186,12 @@ export class IBookHighlightsSettingTab extends PluginSettingTab {
 
   addFilenameTemplateSetting(containerEl: HTMLElement): void {
     const filenameTemplate = new Setting(containerEl)
-      .setName('Template for naming highlight files')
+      .setName('书籍主笔记文件名模板')
       .setDesc(
         createFragment((el) => {
-          el.appendText('Template to generate the name of highlight files.');
+          el.appendText('用于生成书籍主笔记文件名的模板。');
           el.createEl('br');
-          el.appendText('The following template variables are available:');
+          el.appendText('可用变量：');
 
           const ul = el.createEl('ul');
           for (const allowedVariable of allowedFilenameTemplateVariables) {
@@ -189,14 +201,14 @@ export class IBookHighlightsSettingTab extends PluginSettingTab {
           }
           el.createEl('br');
           // The first variable is the default one
-          el.appendText(`Default: ${defaultPluginSettings.filenameTemplate}`);
+          el.appendText(`默认：${defaultPluginSettings.filenameTemplate}`);
         }),
       )
       .setClass('ibooks-highlights-file-naming-template');
 
     filenameTemplate.addTextArea((text) => {
       text
-        .setPlaceholder('Naming template for highlight files')
+        .setPlaceholder('书籍主笔记文件名模板')
         .setValue(this.plugin.settings.filenameTemplate)
         .onChange(async (value) => {
           const valueToSet = value === '' ? defaultPluginSettings.filenameTemplate : value;
@@ -210,12 +222,12 @@ export class IBookHighlightsSettingTab extends PluginSettingTab {
 
   addKeepMeSectionSetting(containerEl: HTMLElement): void {
     new Setting(containerEl)
-      .setName('Template: Keep Me section')
+      .setName('模板：保留区')
       .setDesc(
         createFragment((el) => {
-          el.appendText('Section that keeps your information from being overwritten during re-imports.');
+          el.appendText('重新导入时不会被覆盖的内容区域。');
           el.createEl('br');
-          el.appendText('Default delimiters:');
+          el.appendText('默认分隔符：');
           const ul = el.createEl('ul');
           ul.createEl('li', { text: 'Opening: %% keep-me %%' });
           ul.createEl('li', { text: 'Closing: %% /keep-me %%' });
@@ -224,7 +236,7 @@ export class IBookHighlightsSettingTab extends PluginSettingTab {
       .setClass('ibooks-highlights-keep-me-section')
       .addText((text) => {
         text
-          .setPlaceholder('Opening delimiter')
+          .setPlaceholder('开始分隔符')
           .setValue(this.plugin.settings.keepMeSectionOpeningDelimiter || defaultPluginSettings.keepMeSectionOpeningDelimiter)
           .onChange(async (value) => {
             const valueToSet = value === '' ? defaultPluginSettings.keepMeSectionOpeningDelimiter : value;
@@ -236,7 +248,7 @@ export class IBookHighlightsSettingTab extends PluginSettingTab {
       })
       .addText((text) => {
         text
-          .setPlaceholder('Closing delimiter')
+          .setPlaceholder('结束分隔符')
           .setValue(this.plugin.settings.keepMeSectionClosingDelimiter || defaultPluginSettings.keepMeSectionClosingDelimiter)
           .onChange(async (value) => {
             const valueToSet = value === '' ? defaultPluginSettings.keepMeSectionClosingDelimiter : value;
@@ -250,10 +262,10 @@ export class IBookHighlightsSettingTab extends PluginSettingTab {
 
   addResetTemplateSetting(containerEl: HTMLElement): void {
     new Setting(containerEl)
-      .setName('Reset template')
-      .setDesc('Reset template to default')
+      .setName('重置模板')
+      .setDesc('将书籍主笔记模板恢复为默认值。')
       .addButton((button) => {
-        button.setButtonText('Reset template').onClick(async () => {
+        button.setButtonText('重置模板').onClick(async () => {
           this.plugin.settings.template = defaultTemplate;
 
           await this.plugin.saveSettings();
@@ -266,7 +278,7 @@ export class IBookHighlightsSettingTab extends PluginSettingTab {
     containerEl.createEl('hr');
     containerEl
       .createEl('small', {
-        text: 'Created by ',
+        text: '基于原插件作者：',
         cls: 'credits',
       })
       .createEl('a', {
