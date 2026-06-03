@@ -1,4 +1,4 @@
-import type { IBookWithAnnotations } from '../types';
+import type { IAnnotation, IBookWithAnnotations } from '../types';
 import { requireNodeModule } from '../utils/nodeModules';
 
 interface TocEntry {
@@ -9,6 +9,14 @@ interface TocEntry {
 interface EpubFileReader {
   readText: (relativePath: string) => Promise<string>;
   listFiles: () => Promise<string[]>;
+}
+
+interface BookEpubContext {
+  reader: EpubFileReader;
+  opf: string;
+  opfDir: string;
+  manifestItems: Map<string, string>;
+  spineHrefs: string[];
 }
 
 const textDecoder = new TextDecoder('utf-8');
@@ -45,6 +53,24 @@ const stripXml = (value: string): string => {
     .replace(/&#39;/g, "'")
     .replace(/\s+/g, ' ')
     .trim();
+};
+
+const normalizeText = (value: string): string => stripXml(value).replace(/\s+/g, '');
+
+const getTextBlocks = (html: string): string[] => {
+  const blocks: string[] = [];
+  const blockRegex = /<(p|blockquote|li)\b[^>]*>[\s\S]*?<\/\1>/gi;
+  let blockMatch: RegExpExecArray | null;
+
+  while ((blockMatch = blockRegex.exec(html))) {
+    const text = stripXml(blockMatch[0]);
+
+    if (text) {
+      blocks.push(text);
+    }
+  }
+
+  return blocks.length > 0 ? blocks : [stripXml(html)].filter(Boolean);
 };
 
 const getAttr = (tag: string, attrName: string): string => {
@@ -316,24 +342,30 @@ const getChapterHrefFromCfi = (location: string, spineHrefs: string[]): string =
   return spineIndex >= 0 ? spineHrefs[spineIndex] || '' : '';
 };
 
-const buildBookChapterMap = async (book: IBookWithAnnotations): Promise<Map<string, string>> => {
+const getBookEpubContext = async (book: IBookWithAnnotations): Promise<BookEpubContext | null> => {
   const reader = await createReader(book.bookPath || '');
 
   if (!reader) {
-    return new Map();
+    return null;
   }
 
   const opfPath = await findOpfPath(reader);
 
   if (!opfPath) {
-    return new Map();
+    return null;
   }
 
   const opf = await reader.readText(opfPath);
   const opfDir = dirname(opfPath);
   const manifestItems = getManifestItems(opf);
   const spineHrefs = getSpineHrefs(opf, manifestItems, opfDir);
-  const tocEntries = await getTocEntries(reader, opf, manifestItems, opfDir);
+
+  return { reader, opf, opfDir, manifestItems, spineHrefs };
+};
+
+const buildBookChapterMap = async (context: BookEpubContext, book: IBookWithAnnotations): Promise<Map<string, string>> => {
+  const spineHrefs = context.spineHrefs;
+  const tocEntries = await getTocEntries(context.reader, context.opf, context.manifestItems, context.opfDir);
   const chapterMap = buildChapterMap(spineHrefs, tocEntries);
   const resolvedChapters = new Map<string, string>();
 
@@ -349,21 +381,83 @@ const buildBookChapterMap = async (book: IBookWithAnnotations): Promise<Map<stri
   return resolvedChapters;
 };
 
+const shouldResolveParagraphContext = (annotation: IAnnotation): boolean => {
+  const contextualText = normalizeText(annotation.contextualText || '');
+  const highlight = normalizeText(annotation.highlight || '');
+
+  return Boolean(highlight) && (!contextualText || contextualText === highlight);
+};
+
+const findParagraphContext = async (
+  context: BookEpubContext,
+  annotation: IAnnotation,
+  htmlCache: Map<string, string>,
+): Promise<string> => {
+  const href = getChapterHrefFromCfi(annotation.highlightLocation, context.spineHrefs);
+
+  if (!href) {
+    return '';
+  }
+
+  if (!htmlCache.has(href)) {
+    htmlCache.set(href, await context.reader.readText(href));
+  }
+
+  const html = htmlCache.get(href)!;
+  const normalizedHighlight = normalizeText(annotation.highlight);
+
+  for (const block of getTextBlocks(html)) {
+    const normalizedBlock = normalizeText(block);
+
+    if (normalizedBlock.includes(normalizedHighlight) && normalizedBlock !== normalizedHighlight) {
+      return block;
+    }
+  }
+
+  return '';
+};
+
+const inferMissingParagraphContexts = async (context: BookEpubContext, book: IBookWithAnnotations): Promise<void> => {
+  if (!book.annotations.some(shouldResolveParagraphContext)) {
+    return;
+  }
+
+  const htmlCache = new Map<string, string>();
+
+  for (const annotation of book.annotations) {
+    if (!shouldResolveParagraphContext(annotation)) {
+      continue;
+    }
+
+    const paragraphContext = await findParagraphContext(context, annotation, htmlCache);
+
+    if (paragraphContext) {
+      annotation.contextualText = paragraphContext;
+    }
+  }
+};
+
 export const inferMissingChapters = async (books: IBookWithAnnotations[]): Promise<void> => {
   await Promise.all(
     books.map(async (book) => {
-      if (!book.annotations.some((annotation) => !annotation.chapter)) {
-        return;
-      }
-
       try {
-        const chapterMap = await buildBookChapterMap(book);
+        const context = await getBookEpubContext(book);
 
-        for (const annotation of book.annotations) {
-          annotation.chapter = annotation.chapter || chapterMap.get(annotation.highlightLocation) || '';
+        if (!context) {
+          return;
         }
+
+        if (book.annotations.some((annotation) => !annotation.chapter)) {
+          const chapterMap = await buildBookChapterMap(context, book);
+
+          for (const annotation of book.annotations) {
+            annotation.chapter = annotation.chapter || chapterMap.get(annotation.highlightLocation) || '';
+          }
+        }
+
+        await inferMissingParagraphContexts(context, book);
       } catch (error) {
-        console.warn(`Apple Books Knowledge Cards: 无法推断章节：${book.bookTitle}`, error);
+        console.warn(`Apple Books Knowledge Cards: 无法补全 EPUB 元数据：${book.bookTitle}`, error);
       }
     }),
   );
