@@ -7,6 +7,7 @@ export interface IBook {
   bookLastOpenedDate: number;
   bookFinishedDate: number | null;
   bookCoverUrl: string;
+  bookPath?: string;
 }
 
 export interface IAnnotation {
@@ -44,4 +45,35 @@ export interface IBookHighlightsPluginSettings {
   keepMeSectionOpeningDelimiter: string;
   keepMeSectionClosingDelimiter: string;
   keepMeSectionData?: Record<string, string>;
+}
+
+export interface IHighlightCard {
+  path: string;
+  bookTitle: string;
+  bookAuthor: string;
+  bookId: string;
+  annotationId: string;
+  sourceKey: string;
+  highlightLocation: string;
+  highlightCreationDate: number;
+  highlightModificationDate: number;
+  highlightColor: string;
+  chapter: string;
+  highlightIndex: number;
+  favorite: boolean;
+  reviewed: boolean;
+  linkedAtomicNote: string;
+  highlight: string;
+  appleNote: string;
+  localNote: string;
+}
+
+export interface IBookNoteSummary {
+  path: string;
+  title: string;
+  author: string;
+  bookId: string;
+  annotationCount: number;
+  status: string;
+  cover: string;
 }

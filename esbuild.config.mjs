@@ -19,6 +19,8 @@ const buildOptions = {
   external: [
     'obsidian',
     'electron',
+    'child_process',
+    'os',
     '@codemirror/autocomplete',
     '@codemirror/collab',
     '@codemirror/commands',

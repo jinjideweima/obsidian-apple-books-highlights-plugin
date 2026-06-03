@@ -1,7 +1,7 @@
 {
-	"name": "obsidian-apple-books-highlights-plugin",
+	"name": "apple-books-knowledge-cards",
 	"version": "1.8.1",
-	"description": "Import highlights and notes from your Apple Books to Obsidian",
+	"description": "Import Apple Books highlights as structured notes and knowledge cards",
 	"main": "main.js",
 	"scripts": {
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production && npm run copy-assets",
@@ -21,10 +21,10 @@
 		"test": "vitest --run",
 		"version": "node versioning.mjs"
 	},
-	"author": "bandantonio",
+	"author": "jinjideweima, based on bandantonio",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/bandantonio/obsidian-apple-books-highlights-plugin.git"
+		"url": "git+https://github.com/jinjideweima/obsidian-apple-books-highlights-plugin.git"
 	},
 	"license": "MIT",
 	"keywords": [
