@@ -30,13 +30,13 @@ describe('Plugin information', () => {
   });
 
   test('Check plugin id, name and description', ({ manifest }) => {
-    expect(manifest.id).toEqual('apple-books-import-highlights');
-    expect(manifest.name).toEqual('Apple Books - Import Highlights');
-    expect(manifest.description).toEqual('Import your Apple Books highlights and notes to Obsidian.');
+    expect(manifest.id).toEqual('apple-books-knowledge-cards');
+    expect(manifest.name).toEqual('Apple Books Knowledge Cards');
+    expect(manifest.description).toEqual('Import Apple Books highlights as structured notes and knowledge cards.');
   });
 
   test('Check author information', ({ manifest }) => {
     expect(packageJson.author).toEqual(manifest.author);
-    expect(manifest.authorUrl).toEqual('https://github.com/bandantonio');
+    expect(manifest.authorUrl).toEqual('https://github.com/jinjideweima');
   });
 });

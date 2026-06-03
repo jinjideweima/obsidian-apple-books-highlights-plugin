@@ -1,25 +1,46 @@
-import os from 'os';
-import path from 'path';
 import type { IBook, IAnnotation, IHighlightsSortingCriterion } from '../types';
 import { executeDbQuery } from '../utils/databaseQuery';
+import { requireNodeModule } from '../utils/nodeModules';
 import { sortByLocation } from './annotationsProcessing';
 
+const getEnvValue = (key: string): string | undefined => {
+  return typeof process !== 'undefined' ? process.env[key] : undefined;
+};
+
 export const getBooksDbPath = (): string => {
+  const os = requireNodeModule<typeof import('os')>('os');
+  const path = requireNodeModule<typeof import('path')>('path');
+
   return (
-    process.env.BOOKS_DB_PATH ||
+    getEnvValue('BOOKS_DB_PATH') ||
     path.join(os.homedir(), 'Library/Containers/com.apple.iBooksX/Data/Documents/BKLibrary/BKLibrary-1-091020131601.sqlite')
   );
 };
 
 export const getAnnotationsDbPath = (): string => {
+  const os = requireNodeModule<typeof import('os')>('os');
+  const path = requireNodeModule<typeof import('path')>('path');
+
   return (
-    process.env.ANNOTATIONS_DB_PATH ||
+    getEnvValue('ANNOTATIONS_DB_PATH') ||
     path.join(os.homedir(), 'Library/Containers/com.apple.iBooksX/Data/Documents/AEAnnotation/AEAnnotation_v10312011_1727_local.sqlite')
   );
 };
 
+const getOptionalBookPathSelect = async (dbPath: string): Promise<string> => {
+  try {
+    const columns = await executeDbQuery<Array<{ name: string }>>(dbPath, 'PRAGMA table_info(ZBKLIBRARYASSET)');
+    const hasPathColumn = columns.some((column) => column.name === 'ZPATH');
+
+    return hasPathColumn ? 'ZPATH as bookPath' : "'' as bookPath";
+  } catch {
+    return "'' as bookPath";
+  }
+};
+
 export const getBooks = async (): Promise<IBook[]> => {
   const BOOKS_DB_PATH = getBooksDbPath();
+  const bookPathSelect = await getOptionalBookPathSelect(BOOKS_DB_PATH);
 
   const dbQuery = `SELECT
   ZASSETID as bookId,
@@ -29,7 +50,8 @@ export const getBooks = async (): Promise<IBook[]> => {
   ZLANGUAGE as bookLanguage,
   ZLASTOPENDATE as bookLastOpenedDate,
   ZDATEFINISHED as bookFinishedDate,
-  ZCOVERURL as bookCoverUrl
+  ZCOVERURL as bookCoverUrl,
+  ${bookPathSelect}
   FROM ZBKLIBRARYASSET
   WHERE ZPURCHASEDATE IS NOT NULL`;
 

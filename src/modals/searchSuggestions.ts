@@ -2,6 +2,7 @@ import { type App, SuggestModal } from 'obsidian';
 import type IBookHighlightsPlugin from '../../main';
 import type { IBookWithAnnotations } from '../types';
 import { aggregateBooksWithAnnotations } from '../modules/annotationsProcessing';
+import { importHighlightCards } from '../modules/highlightCards';
 import { compileTemplate } from '../modules/templateProcessing';
 import { getKeepMeSectionDataFromSettings, embedKeepMeSectionDataIntoBookFile } from '../utils/manageKeepMeSection';
 import { showFailedImportNotice, showErrorInConsole } from '../utils/notificationCenter';
@@ -76,17 +77,21 @@ export class IBookHighlightsPluginSearchModal extends IBookHighlightsPluginSugge
       // or when the book was renamed to the title that doesn't match the defined template.
       if (!doesBookFileExist) {
         await this.plugin.vault.createBookFile(compiledFilename, compiledContent);
+        await importHighlightCards(this.plugin.vault, book, compiledFilename);
       }
 
       if (isBackupEnabled && doesBookFileExist) {
         await this.plugin.vault.backupBookFile(file!);
         await this.plugin.vault.createBookFile(compiledFilename, compiledContent);
+        await importHighlightCards(this.plugin.vault, book, compiledFilename);
       }
 
       if (!isBackupEnabled && doesBookFileExist) {
         const fileDetails = {
           file: file!,
           compiledContent,
+          book,
+          compiledFilename,
         };
 
         new OverwriteBookModal(this.app, this.plugin, fileDetails).open();

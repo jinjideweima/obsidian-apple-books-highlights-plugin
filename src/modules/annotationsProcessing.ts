@@ -1,5 +1,6 @@
 import type { IBook, IAnnotation, IBookWithAnnotations, IHighlightsSortingCriterion } from '../types';
 import { getBooks, getAnnotations } from './dataFetching';
+import { inferMissingChapters } from './epubChapters';
 
 export const aggregateBooksWithAnnotations = async (sortingCriterion: IHighlightsSortingCriterion): Promise<IBookWithAnnotations[]> => {
   const [books, annotations] = await Promise.all([getBooks(), getAnnotations(sortingCriterion)]);
@@ -9,6 +10,7 @@ export const aggregateBooksWithAnnotations = async (sortingCriterion: IHighlight
 
   const booksWithAnnotations: IBookWithAnnotations[] = [];
   enrichBooksWithAnnotations(books, annotationsMap, booksWithAnnotations);
+  await inferMissingChapters(booksWithAnnotations);
 
   return booksWithAnnotations;
 };
@@ -19,7 +21,7 @@ export function enrichBooksWithAnnotations(
   booksWithAnnotations: IBookWithAnnotations[],
 ) {
   for (const book of books) {
-    const { bookId, bookTitle, bookAuthor, bookGenre, bookLanguage, bookLastOpenedDate, bookFinishedDate, bookCoverUrl } = book;
+    const { bookId, bookTitle, bookAuthor, bookGenre, bookLanguage, bookLastOpenedDate, bookFinishedDate, bookCoverUrl, bookPath } = book;
 
     const bookRelatedAnnotations = annotationsMap.get(bookId) || [];
     if (bookRelatedAnnotations.length > 0) {
@@ -33,6 +35,7 @@ export function enrichBooksWithAnnotations(
         bookLastOpenedDate,
         bookFinishedDate,
         bookCoverUrl,
+        bookPath,
         annotations: bookRelatedAnnotations.map((annotation) => {
           const {
             assetId,

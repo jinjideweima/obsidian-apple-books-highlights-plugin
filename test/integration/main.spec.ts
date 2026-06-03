@@ -41,7 +41,7 @@ describe('quick-preview event', () => {
   });
 
   test('Should call saveKeepMeSectionData and update keepMeSectionData in settings', async () => {
-    const file = { path: 'ibooks-highlights/Test Book.md', basename: 'Test Book', parent: { path: 'ibooks-highlights' } };
+    const file = { path: '10 Sources/ibooks-dev/Test Book.md', basename: 'Test Book', parent: { path: '10 Sources/ibooks-dev' } };
     const data = 'some content\n%% keep-me %%\nUseful information to preserve between imports\n%% /keep-me %%\nmore content';
 
     await handler(file, data);
@@ -65,7 +65,11 @@ describe('quick-preview event', () => {
   });
 
   test('Should not save settings if file is a backup file', async () => {
-    const file = { path: 'ibooks-highlights/Test-Book-bk-12345.md', basename: 'Test-Book-bk-12345', parent: { path: 'ibooks-highlights' } };
+    const file = {
+      path: '10 Sources/ibooks-dev/Test-Book-bk-12345.md',
+      basename: 'Test-Book-bk-12345',
+      parent: { path: '10 Sources/ibooks-dev' },
+    };
     const data = '%% keep-me %%\nUseful information to preserve between imports\n%% /keep-me %%';
 
     await handler(file, data);
@@ -74,7 +78,7 @@ describe('quick-preview event', () => {
   });
 
   test('Should not save settings if no Keep Me section is extracted', async () => {
-    const file = { path: 'ibooks-highlights/Test.md', basename: 'Test' };
+    const file = { path: '10 Sources/ibooks-dev/Test.md', basename: 'Test' };
     const data = 'content without Keep Me section delimiters';
 
     await handler(file, data);

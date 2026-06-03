@@ -1,11 +1,11 @@
 import { Notice } from 'obsidian';
 
 export const showSuccessfulImportNotice = (): Notice => {
-  return new Notice('Apple Books highlights imported successfully');
+  return new Notice('Apple Books 摘录导入成功');
 };
 
 export const showFailedImportNotice = (pluginName: string): Notice => {
-  return new Notice(`[${pluginName}]:\nError importing highlights. Check console for details (⌥ ⌘ I)`, 0);
+  return new Notice(`[${pluginName}]:\n导入摘录失败，请打开开发者控制台查看详情（⌥ ⌘ I）`, 0);
 };
 
 export const showErrorInConsole = (pluginName: string, error: unknown): void => {

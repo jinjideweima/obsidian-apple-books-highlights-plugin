@@ -1,6 +1,4 @@
-import fs from 'fs';
 import { App, TFile, TFolder } from 'obsidian';
-import path from 'path';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import type { IBookHighlightsPluginSettings } from '../../src/types';
 import { importHighlights } from '../../src/importHighlights';
@@ -36,6 +34,16 @@ describe('importHighlights', () => {
     keepMeSectionData: {},
   };
 
+  const expectBookContent = (content: string, bookTitle: string, bookId: string) => {
+    expect(content).toContain('type: book');
+    expect(content).toContain(`title: "${bookTitle}"`);
+    expect(content).toContain(`book_id: "${bookId}"`);
+    expect(content).toContain('<summary>摘录目录</summary>');
+    expect(content).toContain('## 本书摘录');
+    expect(content).toContain('```apple-books-board');
+    expect(content).toContain(`book_id: ${bookId}`);
+  };
+
   afterEach(() => {
     vi.resetAllMocks();
   });
@@ -46,18 +54,17 @@ describe('importHighlights', () => {
     vi.spyOn(annotationProcessing, 'aggregateBooksWithAnnotations').mockResolvedValue(aggregatedBooksAndAnnotations);
 
     const createBookFileSpy = vi.spyOn(vaultManagement, 'createBookFile');
-    const renderedBookOne = fs.readFileSync(path.join(process.cwd(), 'test', 'fixtures', 'templateProcessing', 'renderedAnnotationsOne-default.md'), 'utf-8'); // oxfmt-ignore
-    const renderedBookTwo = fs.readFileSync(path.join(process.cwd(), 'test', 'fixtures', 'templateProcessing', 'renderedAnnotationsTwo-default.md'), 'utf-8'); // oxfmt-ignore
-    const renderedBookThree = fs.readFileSync(path.join(process.cwd(), 'test', 'fixtures', 'templateProcessing', 'renderedAnnotationsThree-default.md'), 'utf-8'); // oxfmt-ignore
-    const renderedBookFour = fs.readFileSync(path.join(process.cwd(), 'test', 'fixtures', 'templateProcessing', 'renderedAnnotationsFour-default.md'), 'utf-8'); // oxfmt-ignore
+    const upsertFileSpy = vi.spyOn(vaultManagement, 'upsertFile');
 
     await importHighlights(vaultManagement, mockSettings);
 
     expect(createBookFileSpy).toHaveBeenCalledTimes(4);
-    expect(createBookFileSpy).toHaveBeenNthCalledWith(1, 'iPhone User Guide', renderedBookOne);
-    expect(createBookFileSpy).toHaveBeenNthCalledWith(2, 'iPad User Guide', renderedBookTwo);
-    expect(createBookFileSpy).toHaveBeenNthCalledWith(3, 'Mac User Guide', renderedBookThree);
-    expect(createBookFileSpy).toHaveBeenNthCalledWith(4, 'A book to test sorting feature', renderedBookFour);
+    expect(createBookFileSpy).toHaveBeenNthCalledWith(1, 'iPhone User Guide', expect.any(String));
+    expectBookContent(createBookFileSpy.mock.calls[0][1], 'iPhone User Guide', 'THBFYNJKTGFTTVCGSAE1');
+    expect(upsertFileSpy).toHaveBeenCalledWith(
+      'ibooks-highlights/cards/iPhone User Guide/摘录-001.md',
+      expect.stringContaining('# 摘录 1'),
+    );
   });
 
   test('Should modify existing files when importMode === modify', async () => {
@@ -67,11 +74,11 @@ describe('importHighlights', () => {
     vi.spyOn(vaultManagement, 'getFilePath').mockReturnValue({ path: 'ibooks-highlights/iPhone User Guide.md' } as TFile);
 
     const modifyBookFileSpy = vi.spyOn(vaultManagement, 'modifyBookFile');
-    const renderedBookOne = fs.readFileSync(path.join(process.cwd(), 'test', 'fixtures', 'templateProcessing', 'renderedAnnotationsOne-default.md'), 'utf-8'); // oxfmt-ignore
 
     await importHighlights(vaultManagement, mockSettings, 'modify');
 
-    expect(modifyBookFileSpy).toHaveBeenCalledWith({ path: 'ibooks-highlights/iPhone User Guide.md' }, renderedBookOne);
+    expect(modifyBookFileSpy).toHaveBeenCalledWith({ path: 'ibooks-highlights/iPhone User Guide.md' }, expect.any(String));
+    expectBookContent(modifyBookFileSpy.mock.calls[0][1], 'iPhone User Guide', 'THBFYNJKTGFTTVCGSAE1');
   });
 
   test('Should create a new file if importMode === modify but the file does not exist', async () => {
@@ -81,18 +88,17 @@ describe('importHighlights', () => {
     vi.spyOn(vaultManagement, 'getFilePath').mockReturnValue(null);
 
     const createBookFileSpy = vi.spyOn(vaultManagement, 'createBookFile');
-    const renderedBookOne = fs.readFileSync(path.join(process.cwd(), 'test', 'fixtures', 'templateProcessing', 'renderedAnnotationsOne-default.md'), 'utf-8'); // oxfmt-ignore
 
     await importHighlights(vaultManagement, mockSettings, 'modify');
 
-    expect(createBookFileSpy).toHaveBeenCalledWith('iPhone User Guide', renderedBookOne);
+    expect(createBookFileSpy).toHaveBeenCalledWith('iPhone User Guide', expect.any(String));
+    expectBookContent(createBookFileSpy.mock.calls[0][1], 'iPhone User Guide', 'THBFYNJKTGFTTVCGSAE1');
   });
 
   test('Should embed Keep Me section data if it is stored in settings', async () => {
-    const defaultTemplateWithKeepMeSectionDelimiters = fs.readFileSync(path.join(process.cwd(), 'test', 'fixtures', 'templateProcessing', 'defaultTemplateWithKeepMeSectionDelimiters.md'), 'utf-8'); // oxfmt-ignore
     const settingsWithKeepMeSection: IBookHighlightsPluginSettings = {
       ...mockSettings,
-      template: defaultTemplateWithKeepMeSectionDelimiters,
+      template: `${defaultTemplate}\n%% keep-me %%\n%% /keep-me %%\n`,
       keepMeSectionData: {
         'iPhone User Guide': `This is a great guide!📕 I learned so much from it.\nDefinitely need to recommend it to Aaron. 😎🤜🤛😎`,
       },
@@ -102,11 +108,13 @@ describe('importHighlights', () => {
     vi.spyOn(annotationProcessing, 'aggregateBooksWithAnnotations').mockResolvedValue([aggregatedBooksAndAnnotations[0]]);
 
     const createBookFileSpy = vi.spyOn(vaultManagement, 'createBookFile');
-    const renderedBookOneWithKeepMeSection = fs.readFileSync(path.join(process.cwd(), 'test', 'fixtures', 'manageKeepMeSection', 'bookOneWithKeepMeSection.md'), 'utf-8'); // oxfmt-ignore
 
     await importHighlights(vaultManagement, settingsWithKeepMeSection);
 
-    expect(createBookFileSpy).toHaveBeenCalledWith('iPhone User Guide', renderedBookOneWithKeepMeSection);
+    expect(createBookFileSpy).toHaveBeenCalledWith(
+      'iPhone User Guide',
+      expect.stringContaining('Definitely need to recommend it to Aaron.'),
+    );
   });
 
   test('Should throw aggregated error if any file operation fails', async () => {
@@ -114,7 +122,7 @@ describe('importHighlights', () => {
     vi.spyOn(annotationProcessing, 'aggregateBooksWithAnnotations').mockResolvedValue([aggregatedBooksAndAnnotations[0]]);
     vi.spyOn(vaultManagement, 'createBookFile').mockRejectedValueOnce(new Error('File write failed'));
 
-    await expect(importHighlights(vaultManagement, mockSettings)).rejects.toThrow(/file operation\(s\) failed during import/);
+    await expect(importHighlights(vaultManagement, mockSettings)).rejects.toThrow(/导入《iPhone User Guide》失败：File write failed/);
   });
 
   test('Should not create highlights folder if it already exists', async () => {

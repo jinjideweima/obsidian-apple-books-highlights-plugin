@@ -7,7 +7,8 @@
     "bookLanguage": "EN",
     "bookLastOpenedDate": 726602576.413094,
     "bookFinishedDate": 726602576.413094,
-    "bookCoverUrl": ""
+    "bookCoverUrl": "",
+    "bookPath": ""
   },
   {
     "bookId": "THBFYNJKTGFTTVCGSAE2",
@@ -17,7 +18,8 @@
     "bookLanguage": "EN",
     "bookLastOpenedDate": 726602576.413094,
     "bookFinishedDate": 726602576.413094,
-    "bookCoverUrl": ""
+    "bookCoverUrl": "",
+    "bookPath": ""
   },
   {
     "bookId": "THBFYNJKTGFTTVCGSAE3",
@@ -27,7 +29,8 @@
     "bookLanguage": "EN",
     "bookLastOpenedDate": 726602576.413094,
     "bookFinishedDate": 726602576.413094,
-    "bookCoverUrl": ""
+    "bookCoverUrl": "",
+    "bookPath": ""
   },
   {
     "bookId": "THBFYNJKTGFTTVCGSAE5",
@@ -37,7 +40,8 @@
     "bookLanguage": "EN",
     "bookLastOpenedDate": 726602576.413094,
     "bookFinishedDate": 726602576.413094,
-    "bookCoverUrl": ""
+    "bookCoverUrl": "",
+    "bookPath": ""
   },
   {
     "bookId": "THBFYNJKTGFTTVCGSAE6",
@@ -47,6 +51,7 @@
     "bookLanguage": "EN",
     "bookLastOpenedDate": 726602576.413094,
     "bookFinishedDate": 726602576.413094,
-    "bookCoverUrl": ""
+    "bookCoverUrl": "",
+    "bookPath": ""
   }
 ]
