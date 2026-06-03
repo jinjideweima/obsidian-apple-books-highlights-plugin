@@ -19,7 +19,7 @@ describe('Default settings', () => {
   });
 
   test('Should check that default settings have the expected default values', () => {
-    expect(defaultPluginSettings.highlightsFolder).toBe('ibooks-highlights');
+    expect(defaultPluginSettings.highlightsFolder).toBe('10 Sources/ibooks-dev');
     expect(defaultPluginSettings.backup).toBe(false);
     expect(defaultPluginSettings.importOnStart).toBe(false);
     expect(defaultPluginSettings.highlightsSortingCriterion).toBe('creationDateOldToNew');
@@ -34,11 +34,8 @@ describe('Default settings', () => {
       '{{{bookAuthor}}}',
       '{{annotations.length}}',
       '{{#each annotations}}',
-      '{{#if chapter}}{{{chapter}}}{{else}}N/A{{/if}}',
-      '{{#if contextualText}}{{{contextualText}}}{{else}}N/A{{/if}}',
-      '{{{highlight}}}',
-      '{{#if note}}{{{note}}}{{else}}N/A{{/if}}',
-      '{{#if highlightLocation}}[Apple Books Highlight Link](ibooks://assetid/{{../bookId}}#{{highlightLocation}}){{else}}N/A{{/if}}',
+      '{{displayIndex @index}}',
+      'book_id: {{bookId}}',
       '{{/each}}',
     ];
 

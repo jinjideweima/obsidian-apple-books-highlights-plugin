@@ -111,7 +111,7 @@ describe('IBookHighlightsPlugin', () => {
 
       expect(backupAllHighlightsMock).toHaveBeenCalled();
       expect(importHighlightsMock).toHaveBeenCalledWith(plugin.vault, expect.anything(), 'modify');
-      expect(NoticeMock).toHaveBeenCalledWith('Apple Books highlights imported successfully');
+      expect(NoticeMock).toHaveBeenCalledWith('Apple Books 摘录导入成功');
     });
 
     test('Should show OverwriteBookModal on start without creating a backup when backup is disabled', async () => {
@@ -150,7 +150,7 @@ describe('IBookHighlightsPlugin', () => {
       await plugin.onload();
       await onLayoutReadyPromise;
 
-      expect(NoticeMock).toHaveBeenCalledWith('Apple Books highlights imported successfully');
+      expect(NoticeMock).toHaveBeenCalledWith('Apple Books 摘录导入成功');
     });
 
     test('Should show error notice if import fails on start and backup is enabled', async () => {
@@ -169,7 +169,7 @@ describe('IBookHighlightsPlugin', () => {
 
       expect(backupAllHighlightsMock).toHaveBeenCalled();
       expect(importHighlightsMock).toHaveBeenCalledWith(plugin.vault, expect.anything(), 'modify');
-      expect(NoticeMock).toHaveBeenCalledWith('[Apple Books Test Mock]:\nError importing highlights. Check console for details (⌥ ⌘ I)', 0);
+      expect(NoticeMock).toHaveBeenCalledWith('[Apple Books Test Mock]:\n导入摘录失败，请打开开发者控制台查看详情（⌥ ⌘ I）', 0);
     });
   });
   describe('Ribbon action import', () => {
@@ -181,7 +181,7 @@ describe('IBookHighlightsPlugin', () => {
       await callback({} as any);
       expect(backupAllHighlightsMock).toHaveBeenCalled();
       expect(importHighlightsMock).toHaveBeenCalled();
-      expect(NoticeMock).toHaveBeenCalledWith('Apple Books highlights imported successfully');
+      expect(NoticeMock).toHaveBeenCalledWith('Apple Books 摘录导入成功');
     });
 
     test('Should throw error notice if import fails on ribbon icon click if backup setting is enabled', async () => {
@@ -192,7 +192,7 @@ describe('IBookHighlightsPlugin', () => {
       await callback({} as any);
       expect(backupAllHighlightsMock).toHaveBeenCalled();
       expect(importHighlightsMock).toHaveBeenCalled();
-      expect(NoticeMock).toHaveBeenCalledWith('[Apple Books Test Mock]:\nError importing highlights. Check console for details (⌥ ⌘ I)', 0);
+      expect(NoticeMock).toHaveBeenCalledWith('[Apple Books Test Mock]:\n导入摘录失败，请打开开发者控制台查看详情（⌥ ⌘ I）', 0);
     });
 
     test('Should show OverwriteBookModal on ribbon icon click if backup setting is disabled', async () => {
@@ -230,7 +230,7 @@ describe('IBookHighlightsPlugin', () => {
       await commandCallback({} as any);
       expect(backupAllHighlightsMock).toHaveBeenCalled();
       expect(importHighlightsMock).toHaveBeenCalled();
-      expect(NoticeMock).toHaveBeenCalledWith('[Apple Books Test Mock]:\nError importing highlights. Check console for details (⌥ ⌘ I)', 0);
+      expect(NoticeMock).toHaveBeenCalledWith('[Apple Books Test Mock]:\n导入摘录失败，请打开开发者控制台查看详情（⌥ ⌘ I）', 0);
     });
 
     test('Should show OverwriteBookModal on addImportAllBooksCommand if backup setting is disabled', async () => {
@@ -272,7 +272,7 @@ describe('IBookHighlightsPlugin', () => {
 
       const commandCallback = mockAddCommand.mock.calls[1][0].callback;
       await commandCallback({} as any);
-      expect(NoticeMock).toHaveBeenCalledWith('[Apple Books Test Mock]:\nError importing highlights. Check console for details (⌥ ⌘ I)', 0);
+      expect(NoticeMock).toHaveBeenCalledWith('[Apple Books Test Mock]:\n导入摘录失败，请打开开发者控制台查看详情（⌥ ⌘ I）', 0);
     });
 
     test.todo('Trigger import via keyboard shortcut/command palette');

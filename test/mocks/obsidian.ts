@@ -12,6 +12,8 @@ export class Plugin {
   addRibbonIcon() {}
   addCommand() {}
   addSettingTab() {}
+  registerView() {}
+  registerMarkdownCodeBlockProcessor() {}
   loadData() {
     return {};
   }
@@ -36,6 +38,31 @@ export function setIcon(): void {}
 export class App {}
 export class PluginSettingTab {}
 export class Setting {}
+
+export class ItemView {
+  app: App = new App();
+  contentEl = {
+    empty() {},
+    createDiv() {
+      return this;
+    },
+    addClass() {},
+    toggleClass() {},
+  };
+  leaf: unknown;
+
+  constructor(leaf?: unknown) {
+    this.leaf = leaf;
+  }
+}
+
+export class WorkspaceLeaf {}
+
+export const Platform = {
+  isMobile: false,
+  isPhone: false,
+  isTablet: false,
+};
 
 export class Modal {
   app: App;

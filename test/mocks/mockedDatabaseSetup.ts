@@ -27,6 +27,7 @@ export const createTestDatabaseAndTables = () => {
     ZLASTOPENDATE REAL,
     ZDATEFINISHED REAL,
     ZCOVERURL TEXT,
+    ZPATH TEXT,
     ZPURCHASEDATE REAL
   );
     
@@ -53,8 +54,8 @@ interface IAnnotationFromDb extends IAnnotation {
 
 export const insertTestData = (db: any) => {
   const insertBook = db.prepare(`
-    INSERT INTO ZBKLIBRARYASSET (ZASSETID, ZTITLE, ZAUTHOR, ZGENRE, ZLANGUAGE, ZLASTOPENDATE, ZDATEFINISHED, ZCOVERURL, ZPURCHASEDATE)
-    VALUES (@bookId, @bookTitle, @bookAuthor, @bookGenre, @bookLanguage, @bookLastOpenedDate, @bookFinishedDate, @bookCoverUrl, @ZPURCHASEDATE);
+    INSERT INTO ZBKLIBRARYASSET (ZASSETID, ZTITLE, ZAUTHOR, ZGENRE, ZLANGUAGE, ZLASTOPENDATE, ZDATEFINISHED, ZCOVERURL, ZPATH, ZPURCHASEDATE)
+    VALUES (@bookId, @bookTitle, @bookAuthor, @bookGenre, @bookLanguage, @bookLastOpenedDate, @bookFinishedDate, @bookCoverUrl, @bookPath, @ZPURCHASEDATE);
   `);
 
   const insertAnnotation = db.prepare(`
@@ -66,7 +67,7 @@ export const insertTestData = (db: any) => {
 
   const insertBooksTransaction = db.transaction((booksData: IBook[]) => {
     for (const book of booksData) {
-      const { bookId, bookTitle, bookAuthor, bookGenre, bookLanguage, bookLastOpenedDate, bookFinishedDate, bookCoverUrl } = book;
+      const { bookId, bookTitle, bookAuthor, bookGenre, bookLanguage, bookLastOpenedDate, bookFinishedDate, bookCoverUrl, bookPath } = book;
 
       if (bookTitle !== 'Non-Purchased Book') {
         insertBook.run({
@@ -78,6 +79,7 @@ export const insertTestData = (db: any) => {
           bookLastOpenedDate,
           bookFinishedDate,
           bookCoverUrl,
+          bookPath: bookPath || '',
           ZPURCHASEDATE: bookLastOpenedDate,
         });
       } else {
@@ -90,6 +92,7 @@ export const insertTestData = (db: any) => {
           bookLastOpenedDate,
           bookFinishedDate,
           bookCoverUrl,
+          bookPath: bookPath || '',
           ZPURCHASEDATE: null,
         });
       }
