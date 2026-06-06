@@ -1,135 +1,123 @@
-# Templates and variables
-<!-- Custom container to prevent Handlebars variables to be treated as Vue interpolations -->
+# 模板与变量
+
 <span v-pre>
 
-The plugin uses Handlebars and Markdown to customize the output of your highlights the way you want.
-<!-- <<< ../../src/template.ts -->
+插件使用 Handlebars + Markdown 自定义书籍主笔记的输出格式。
 
-## Default template
+## 默认模板
 
 ```hbs
-Title:: 📕 {{{bookTitle}}}
-Author:: {{{bookAuthor}}}
-Link:: [Apple Books Link](ibooks://assetid/{{bookId}})
+---
+type: book
+title: "{{{bookTitle}}}"
+author: "{{{bookAuthor}}}"
+source: Apple Books
+book_id: "{{bookId}}"
+annotation_count: {{annotations.length}}
+status: "{{#if bookFinishedDate}}已读{{else}}在读{{/if}}"
+{{#if bookCoverUrl}}cover: "{{{bookCoverUrl}}}"{{/if}}
+cssclasses:
+  - wide-apple-book
+tags:
+  - book
+---
 
-## Annotations
-
-Number of annotations:: {{annotations.length}}
-
+<details class="abkc-note-toc-details">
+<summary>摘录目录</summary>
+<div class="abkc-note-toc">
 {{#each annotations}}
-----
-
-- 📖 Chapter:: {{#if chapter}}{{{chapter}}}{{else}}N/A{{/if}}
-- 🔖 Context:: {{#if contextualText}}{{{contextualText}}}{{else}}N/A{{/if}}
-- 🎯 Highlight:: {{{highlight}}}
-- 📝 Note:: {{#if note}}{{{note}}}{{else}}N/A{{/if}}
-- 📙 Highlight Link:: {{#if highlightLocation}}[Apple Books Highlight Link](ibooks://assetid/{{../bookId}}#{{highlightLocation}}){{else}}N/A{{/if}}
-
+<a href="#摘录-{{displayIndex @index}}">摘录 {{displayIndex @index}}</a>
 {{/each}}
+</div>
+</details>
+
+## 本书摘录
+
+\`\`\`apple-books-board
+book_id: {{bookId}}
+theme: receipt
+\`\`\`
 ```
 
-## Custom templates
+默认模板使用 YAML frontmatter 格式，并通过 `apple-books-board` 代码块嵌入该书的摘录墙。
 
-::: details Colored highlights
-```hbs
-Title:: 📕 {{{bookTitle}}}
-Author:: {{{bookAuthor}}}
-Genre:: {{#if bookGenre}}{{{bookGenre}}}{{else}}N/A{{/if}}
-Language:: {{#if bookLanguage}}{{bookLanguage}}{{else}}N/A{{/if}}
-Last Read:: {{dateFormat bookLastOpenedDate "YYYY-MM-DD hh:mm:ss A Z"}}
-finishedDate:: {{#if bookFinishedDate}}{{dateFormat bookFinishedDate "YYYY-MM-DDTHH:mm:ss"}}{{else}}Still Reading{{/if}}
-Link:: [Apple Books Link](ibooks://assetid/{{bookId}})
+## 模板变量
 
-{{#if bookCoverUrl}}![Book Cover]({{{bookCoverUrl}}}){{/if}}
+### 书籍级变量
 
-## Annotations
+| 变量 | 说明 |
+|------|------|
+| `{{{bookTitle}}}` | 书名 |
+| `{{bookId}}` | Apple Books 唯一标识符 |
+| `{{{bookAuthor}}}` | 作者 |
+| `{{{bookGenre}}}` | 类别 |
+| `{{bookLanguage}}` | 语言代码 |
+| `{{bookLastOpenedDate}}` | 最后打开日期（需配合 `dateFormat`） |
+| `{{bookFinishedDate}}` | 读完日期（需配合 `dateFormat`） |
+| `{{bookCoverUrl}}` | 封面 URL |
+| `{{annotations}}` | 摘录数组 |
+| `{{annotations.length}}` | 摘录总数 |
 
-Number of annotations:: {{annotations.length}}
+### 摘录级变量（在 `{{#each annotations}}` 内使用）
 
-{{#each annotations}}
-----
+| 变量 | 说明 |
+|------|------|
+| `{{{highlight}}}` | 高亮文本 |
+| `{{{contextualText}}}` | 上下文文本 |
+| `{{{chapter}}}` | 章节名（可能为空） |
+| `{{{note}}}` | 用户在 Apple Books 中添加的笔记 |
+| `{{{highlightLocation}}}` | 高亮位置标识符（epubcfi） |
+| `{{highlightStyle}}` | 高亮样式代码 |
+| `{{highlightCreationDate}}` | 高亮创建日期 |
+| `{{highlightModificationDate}}` | 高亮修改日期 |
 
-{{#if (eq highlightStyle "0")}}- 🎯 Highlight:: <u>{{{highlight}}}</u>
-{{else if (eq highlightStyle "1")}}- 🎯 Highlight:: <mark style="background:rgb(175,213,151); color:#000; padding:2px;">{{{highlight}}}</mark>
-{{else if (eq highlightStyle "2")}}- 🎯 Highlight:: <mark style="background:rgb(181,205,238); color:#000; padding:2px;">{{{highlight}}}</mark>
-{{else if (eq highlightStyle "3")}}- 🎯 Highlight:: <mark style="background:rgb(249,213,108); color:#000; padding:2px;">{{{highlight}}}</mark>
-{{else if (eq highlightStyle "4")}}- 🎯 Highlight:: <mark style="background:rgb(242,178,188); color:#000; padding:2px;">{{{highlight}}}</mark>
-{{else if (eq highlightStyle "5")}}- 🎯 Highlight:: <mark style="background:rgb(214,192,238); color:#000; padding:2px;">{{{highlight}}}</mark>
-{{/if}}
-- 📝 Note:: {{#if note}}{{{note}}}{{else}}N/A{{/if}}
-- <small>📅 Highlight taken on:: {{dateFormat highlightCreationDate "YYYY-MM-DD hh:mm:ss A Z"}}</small>
-- <small>📅 Highlight modified on:: {{dateFormat highlightModificationDate "YYYY-MM-DD hh:mm:ss A Z"}}</small>
+### 高亮样式对照
 
-{{/each}}
-```
+| 值 | 颜色 |
+|----|------|
+| 0 | 下划线 |
+| 1 | 绿色 |
+| 2 | 蓝色 |
+| 3 | 黄色 |
+| 4 | 粉色 |
+| 5 | 紫色 |
 
-![Colored highlights](../assets/colored-highlights.png)
-:::
+### Handlebars 辅助函数
 
-> [!TIP]
-> If you created a template you love and want to share it with others, you're welcome to do it in the [corresponding topic](https://github.com/bandantonio/obsidian-apple-books-highlights-plugin/discussions/32). Your contribution will also help others to get inspired and create their own templates. Thank you!
-
-## Template variables
-
-- `{{{bookTitle}}}` - The title of the book.
-- `{{bookId}}` - A unique identifier of the book. It is used to create a link to the book in Apple Books: `[Apple Books Link](ibooks://assetid/{{bookId}})`.
-- `{{{bookAuthor}}}` - The author of the book.
-- `{{{bookGenre}}}` - The genre of the book.
-- `{{bookLanguage}}` - The language of the book.
-- `{{bookLastOpenedDate}}` - The date when you last opened the book. See the [Date formatting](#date-formatting) section for more information.
-- `{{bookFinishedDate}}` - The date when you finished reading the book. See the [Date formatting](#date-formatting) section for more information.
-- `{{bookCoverUrl}}` - The URL of the book cover.
-- `{{annotations}}` - An array of all the annotations in the book. You can use `{{annotations.length}}` to get the total number of annotations you made in the book. Each annotation has the following properties:
-  - `{{{chapter}}}` - The chapter of the highlight in the book. It may not be available for all highlights due to the initial formatting of the book.
-  - `{{{contextualText}}}` - The text surrounding the highlight to give you more context. For example:
-    - If you highlight a part of a sentence, the - `contextualText` will contain the whole sentence.
-    - If you highlight parts of two adjacent sentences, the `contextualText` will contain both sentences.
-  - `{{{highlight}}}` - The highlighted text.
-  - `{{{note}}}` - A note you added for the highlight.
-  - `{{{highlightLocation}}}` - A unique identifier of the highlighted text. It is used to create a link to the highlighted text in Apple Books. For example: `[Apple Books Highlight Link](ibooks://assetid/{{bookId}}#{{highlightLocation}})`.
-  - `{{highlightStyle}}` - The style of the highlight. It can be one of the following values:
-    - `0` (underline)
-    - `1` (green)
-    - `2` (blue)
-    - `3` (yellow)
-    - `4` (pink)
-    - `5` (violet)
-  - `{{highlightCreationDate}}` - The date when you created the highlight. See the [Date formatting](#date-formatting) section for more information.
-  - `{{highlightModificationDate}}` - The date when you last modified the highlight. See the [Date formatting](#date-formatting) section for more information.
+| 函数 | 用法 | 说明 |
+|------|------|------|
+| `dateFormat` | `{{dateFormat bookLastOpenedDate "YYYY-MM-DD"}}` | 将 Apple 时间戳格式化为可读日期（使用 dayjs） |
+| `displayIndex` | `{{displayIndex @index}}` | 将 0-based 索引转为 1-based 显示序号 |
+| `padIndex` | `{{padIndex @index 3}}` | 补零索引，如 `001` |
+| `eq` | `{{#if (eq highlightStyle "3")}}...{{/if}}` | 相等判断 |
 
 > [!IMPORTANT]
-> When customizing the template, make sure to wrap variables with triple curly braces (`{{{variable}}}`) to avoid escaping the HTML characters in Markdown files (default behavior).
->
-> If you want escaped output, use double curly braces: `{{variable}}`.
+> 使用三重花括号（如 `{{{bookTitle}}}`）来避免 HTML 转义（Handlebars 默认行为）。
+> 如果需要转义输出，使用双重花括号（如 `{{bookId}}`）。
 
-### Template variables for filenames
+### 文件名模板变量
 
-The plugin uses a subset of the [template variables](#template-variables) to generate the name of highlight files.
-The following variables are available:
+文件名模板只能使用以下变量：
 
-- `{{{bookTitle}}}` (Default value)
+- `{{{bookTitle}}}` （默认）
 - `{{bookId}}`
 - `{{{bookAuthor}}}`
 - `{{{bookGenre}}}`
 - `{{bookLanguage}}`
 
+## 日期格式化
 
-## Date formatting
-
-The plugin uses the `dateFormat` helper that takes a unix timestamp and the [datajs-compatible string of tokens](https://day.js.org/docs/en/display/format#list-of-all-available-formats) to format dates in the template. For example:
+`dateFormat` 辅助函数接受一个 Apple 时间戳和 [dayjs 格式字符串](https://day.js.org/docs/en/display/format)：
 
 ```hbs
-// Template
-{{dateFormat dateVariable "date format"}}
+{{dateFormat bookLastOpenedDate "YYYY-MM-DD HH:mm:ss"}}
+// → 2024-03-04 17:50:28
 
-// Example 1
-{{dateFormat bookLastOpenedDate "YYYY-MM-DD hh:mm:ss A Z"}}
-2024-03-04 05:50:28 PM +01:00
-
-// Example 2
-{{dateFormat bookLastOpenedDate "ddd, MMM DD YYYY, HH:mm:ss Z"}}
-Mon, Mar 04 2024, 17:50:28 +02:00
+{{dateFormat bookLastOpenedDate "ddd, MMM DD YYYY"}}
+// → Mon, Mar 04 2024
 ```
 
-<!-- End of custom container to prevent Handlebars variables to be treated as Vue interpolations -->
+> [!NOTE]
+> Apple Books 使用从 2001-01-01 开始的纪元时间，插件会自动转换为标准 Unix 时间戳。
+
 </span>

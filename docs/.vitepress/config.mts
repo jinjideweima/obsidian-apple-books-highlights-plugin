@@ -2,17 +2,17 @@ import { defineConfig } from 'vitepress'
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
-	lang: 'en-US',
-	title: "Apple Books\nImport Highlights",
-	description: "Import your Apple Books highlights and notes to Obsidian",
+	lang: 'zh-CN',
+	title: "Apple Books\nKnowledge Cards",
+	description: "将 Apple Books 的摘录导入 Obsidian，以知识卡片和阅读仪表盘的形式管理",
 	base: '/obsidian-apple-books-highlights-plugin/',
   lastUpdated: true,
 	themeConfig: {
 		// https://vitepress.dev/reference/default-theme-config
 		logo: '/logo.svg',
 		nav: [
-			{ text: 'Home', link: '/' },
-			{ text: 'Get Started', link: '/guide/get-started' }
+			{ text: '首页', link: '/' },
+			{ text: '快速开始', link: '/guide/get-started' }
 		],
 
 		search: {
@@ -21,16 +21,16 @@ export default defineConfig({
 
 		sidebar: [
 			{
-				text: 'Guide',
+				text: '指南',
 				items: [
-					{ text: 'Getting Started', link: '/guide/get-started' },
-					{ text: 'Settings', link: '/guide/settings' }
+					{ text: '快速开始', link: '/guide/get-started' },
+					{ text: '设置说明', link: '/guide/settings' }
 				]
 			},
 			{
-				text: 'Customization',
+				text: '自定义',
 				items: [
-					{ text: 'Templates and variables', link: '/customization/templates-and-variables' },
+					{ text: '模板与变量', link: '/customization/templates-and-variables' },
 				]
 			}
 		],
@@ -41,7 +41,7 @@ export default defineConfig({
 
 		footer: {
 			message: "Released under the <a href='https://github.com/bandantonio/obsidian-apple-books-highlights-plugin/blob/master/LICENSE' target='_blank'>MIT License</a>.",
-			copyright: "Copyright © 2024-present <a href='https://github.com/bandantonio' target='_blank'>Anton Zolotukhin</a>",
+			copyright: "基于 <a href='https://github.com/bandantonio' target='_blank'>bandantonio</a> 原插件 fork",
 		},
 	}
 })

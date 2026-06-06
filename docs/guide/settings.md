@@ -1,264 +1,88 @@
-# Settings
+# 设置说明
 
-## Highlight folder
+## 导入目录
 
-- Default value: `ibooks-highlights`
+- 默认值：`ibooks-highlights`
 
-A folder (within the root of your vault) where you want to save imported highlights. You can use digits, dashes, underscores, or spaces in the folder name. To specify a subfolder of any depth, use `/` as a separator. If the specified path does not exist (fully or partially), it will be created.
-
-For example, below are some valid folder names:
+保存 Apple Books 书籍主笔记和摘录卡片的 Vault 内目录。支持嵌套路径，例如：
 
 - `notes/highlights`
-- `imported_notes/apple_books/highlights`
-- `3 - Resources/My Books/Apple Books/Unprocessed`
+- `3 - Resources/My Books/Apple Books`
 
-## Import highlights on start
+如果路径不存在，插件会自动创建。
 
-- Default value: Turned off
+## 启动时导入
 
-Import all highlights from all your books when Obsidian starts. Respects the [Backup highlights](#backup-highlights) setting.
+- 默认值：关闭
 
-## Backup highlights
+Obsidian 启动时自动导入所有 Apple Books 摘录。遵循备份设置。
 
-- Default value: Turned off
-- Backup template:
-	- for the highlight folder: `<highlights-folder>-bk-<timestamp>`. For example, `ibooks-highlights-bk-1704060001`.
-	- for a specific book: `<highlights-file>-bk-<timestamp>`. For example, `Building a Second Brain-bk-1704060001`.
+## 导入前备份
 
-Backup highlights before import.
-- When importing all highlights, the [highlight folder](#highlight-folder) contents (see the note below) will be backed up.
-- When importing highlights from a specific book, the specific highlights file will be backed up, if it exists.
+- 默认值：关闭
 
-The backup name is pre-configured based on the template above and cannot be changed.
+导入前备份已有内容，防止数据丢失。
 
-::: details Examples
-
-**Import all highlights**
-
-Initial state
-```plaintext
-.
-└── ibooks-highlights
-    ├── Atomic Habits - Tiny Changes, Remarkable Results
-    └── Building a Second Brain
-```
-After import
-```plaintext
-.
-├── ibooks-highlights
-│   └── <newly imported highlights>
-└── ibooks-highlights-bk-1723233525489
-    ├── Atomic Habits - Tiny Changes, Remarkable Results
-    └── Building a Second Brain
-```
-**Import highlights from a specific book**
-
-Initial state
-```plaintext
-.
-└── ibooks-highlights
-    ├── Atomic Habits - Tiny Changes, Remarkable Results
-    └── Building a Second Brain
-```
-After import
-```plaintext
-.
-└── ibooks-highlights
-    ├── Atomic Habits - Tiny Changes, Remarkable Results
-	├── Atomic Habits - Tiny Changes, Remarkable Results-bk-1723234215251
-    └── Building a Second Brain
-```
-
-:::
-
-> [!NOTE]
-> The plugin will back up only the files that are direct children of the [highlight folder](#highlight-folder). If you (for some reason) have a nested folder structure inside the [highlight folder](#highlight-folder), these folders will not be backed up and will be overwritten on import.
+- 全部导入时：备份整个导入目录 → `<导入目录>-bk-<时间戳>`
+- 单本导入时：备份该书籍主笔记 → `<文件名>-bk-<时间戳>.md`
 
 > [!TIP]
-> To prevent accidental data loss when the setting is turned off, the plugin will display a confirmation dialog before overwriting the existing highlights.
+> 关闭备份时，插件会在覆盖前弹出确认对话框。
 
-## Highlights sorting criterion
+## 摘录排序方式
 
-- Default value: By creation date (from oldest to newest)
+- 默认值：按创建时间（从旧到新）
 
-Sort highlight by a specific criterion.
+可选项：
 
-The available options are:
+| 排序方式 | 说明 |
+|---------|------|
+| 按创建时间：从旧到新 | 最先创建的摘录排在前面 |
+| 按创建时间：从新到旧 | 最后创建的摘录排在前面 |
+| 按修改时间：从旧到新 | 最先修改的排在前面 |
+| 按修改时间：从新到旧 | 最后修改的排在前面 |
+| 按书中位置 | 按照在书中的实际位置排列（推荐） |
 
-- By creation date (from oldest to newest)
-- By creation date (from newest to oldest)
-- By last modification date* (from oldest to newest)
-- By last modification date* (from newest to oldest)
-- By location in a book
+> [!TIP]
+> "修改"包括：更新高亮文本、添加/修改笔记、更改高亮颜色。
 
-::: tip What a modification is?
-Modification includes the following cases:
+## 书籍主笔记模板
 
-- Updating highlight text
-- Adding or updating a note
-- Changing the highlight color or style
-:::
+使用 Handlebars + Markdown 自定义每本书主笔记的输出格式。独立摘录卡片由插件自动生成，不受此模板影响。
 
-::: details Examples
+详见 [模板与变量](/customization/templates-and-variables)。
 
-Let's consider an example book with the following highlights (callouts to the left indicate the order in which the highlights were created):
+## 保留区（Keep Me）
 
-![Highlights order](../assets/example-highlights-order.png)
+默认分隔符：
+- 开始：`%% keep-me %%`
+- 结束：`%% /keep-me %%`
 
-- **By creation date (from oldest to newest)**: The highlights that were created first will be at the top.
+在模板中添加保留区后，重新导入时该区域内的个人内容不会被覆盖。
 
-	::: details Example
-	```md
-	## Annotations
-	----
-	- 🎯 Highlight:: And now this. Christmas Day, alone on a hospital ward, failing to get through my shift.
-	----
-	- 🎯 Highlight:: At 10:30am, I looked around the ward. Nurse Janice was sprinting up and down corridor A
-	----
-	- 🎯 Highlight:: As Christmas turned to Boxing Day, I stayed up poring over my old notes and wondered whether that was where I was going wrong
-	----
-	- 🎯 Highlight:: ‘Merry Christmas, Ali. Try not to kill anyone.’
-	```
-	:::
-
-- **By creation date (from newest to oldest)**: The highlights that were created last will be at the top.
-
-	::: details Example
-	```md
-	## Annotations
-	----
-	- 🎯 Highlight:: ‘Merry Christmas, Ali. Try not to kill anyone.’
-	----
-	- 🎯 Highlight:: As Christmas turned to Boxing Day, I stayed up poring over my old notes and wondered whether that was where I was going wrong
-	----
-	- 🎯 Highlight:: At 10:30am, I looked around the ward. Nurse Janice was sprinting up and down corridor A
-	----
-	- 🎯 Highlight:: And now this. Christmas Day, alone on a hospital ward, failing to get through my shift.
-	```
-	:::
-
-- **By last modification date (from oldest to newest)**: The highlights that were modified first will be at the top.
-
-	::: details Example
-	```md
-	## Annotations
-	----
-	- 🎯 Highlight:: As Christmas turned to Boxing Day, I stayed up poring over my old notes and wondered whether that was where I was going wrong
-	- 📝 Note:: N/A
-	----
-	- 🎯 Highlight:: ‘Merry Christmas, Ali. Try not to kill anyone.’
-	- 📝 Note:: N/A
-	----
-	- 🎯 Highlight:: At 10:30am, I looked around the ward. Nurse Janice was sprinting up and down corridor A
-	- 📝 Note:: Test modification date (modified first)
-	----
-	- 🎯 Highlight:: And now this. Christmas Day, alone on a hospital ward, failing to get through my shift.
-	- 📝 Note:: Test modification date (modified second)
-	```
-	:::
-
-- **By last modification date (from newest to oldest)**: The highlights that were modified last will be at the top.
-
-	::: details Example
-	```md
-	## Annotations
-	----
-	- 🎯 Highlight:: And now this. Christmas Day, alone on a hospital ward, failing to get through my shift.
-	- 📝 Note:: Test modification date (modified second)
-	----
-	- 🎯 Highlight:: At 10:30am, I looked around the ward. Nurse Janice was sprinting up and down corridor A
-	- 📝 Note:: Test modification date (modified first)
-	----
-	- 🎯 Highlight:: ‘Merry Christmas, Ali. Try not to kill anyone.’
-	- 📝 Note:: N/A
-	----
-	- 🎯 Highlight:: As Christmas turned to Boxing Day, I stayed up poring over my old notes and wondered whether that was where I was going wrong
-	- 📝 Note:: N/A
-	```
-	:::
-
-- **By location in a book**: Highlights are sorted by their location in a book.
-
-	::: details Example
-	```md
-	## Annotations
-	----
-	- 🎯 Highlight:: ‘Merry Christmas, Ali. Try not to kill anyone.’
-	- 📝 Note:: N/A
-	----
-	- 🎯 Highlight:: At 10:30am, I looked around the ward. Nurse Janice was sprinting up and down corridor A
-	- 📝 Note:: Test modification date (modified first)
-	----
-	- 🎯 Highlight:: And now this. Christmas Day, alone on a hospital ward, failing to get through my shift.
-	- 📝 Note:: Test modification date (modified second)
-	----
-	- 🎯 Highlight:: As Christmas turned to Boxing Day, I stayed up poring over my old notes and wondered whether that was where I was going wrong
-	- 📝 Note:: N/A
-	```
-	:::
-:::
-
-## Template
-
-- Template for highlight files.
-
-Check the [Templates and variables](/customization/templates-and-variables) page for more information.
-
-## Template: Keep Me section
-
-Default delimiters:
-
-- Opening: `%% keep-me %%`
-- Closing: `%% /keep-me %%`
-
-You can use the Keep Me section to protect specific content (like summaries, thoughts and reflections, references, etc.) in your highlight files from being overwritten during the import process.
-
-::: details Example
 ```md
-Title:: 📕 Building a Second Brain
-
 %% keep-me %%
-## My thoughts
-- This book helped me organize my knowledge and be more productive.
-- The PARA method was a game changer for my workflow.
-- I need to re-read the section about progressive summarization, I think I can implement it in my note-taking process.
+## 我的想法
+- 这本书的 PARA 方法改变了我的工作流程。
+- 需要重读渐进式总结那一节。
 %% /keep-me %%
-
-## Annotations
-
-- 🎯 Highlight:: Information is the fundamental building block of everything you do.
-- 📝 Note:: This immediately reminds me of the need to document everything I do 😁
-
 ```
-:::
 
-When you specify the Keep Me section in the template, it serves as a placeholder with the default content for new highlight files.
-When you update a highlight file, the current content of the Keep Me section is saved to the settings.
-During import, the plugin checks if there’s stored content for the highlight file and restores it to the Keep Me section if found.
-Otherwise, it keeps the placeholder.
+> [!NOTE]
+> 插件仅跟踪导入目录中的保留区数据。备份文件（`-bk-` 后缀）中的保留区不会被追踪。
 
-::: tip
-You can customize the opening and closing delimiters if they conflict with your notes or if you prefer different markers.
-:::
+## 书籍主笔记文件名模板
 
-::: info
-The plugin tracks the Keep Me section in the highlight files within the [highlight folder](#highlight-folder) only. [Backups of highlight files](#backup-highlights) (with `-bk-<timestamp>` in their names) are out of scope. Please keep this in mind when updating the Keep Me section content to avoid accidental data loss during backup and import.
-:::
-
-## Template for naming highlight files
-
-<!-- Custom container to prevent Handlebars variables to be treated as Vue interpolations -->
 <span v-pre>
 
-- Default value: `{{{bookTitle}}}`
+- 默认值：`{{{bookTitle}}}`
 
-<!-- End of custom container to prevent Handlebars variables to be treated as Vue interpolations -->
+可用变量：`{{{bookTitle}}}`、`{{bookId}}`、`{{{bookAuthor}}}`、`{{{bookGenre}}}`、`{{bookLanguage}}`
+
+示例：`{{{bookTitle}}} - {{{bookAuthor}}}` → `Atomic Habits - James Clear.md`
+
 </span>
 
-Template to generate the name of highlight files. Check the [Template variables for filenames](/customization/templates-and-variables#template-variables-for-filenames) section for more information.
+## 重置模板
 
-## Reset template
-
-- Reset template to default
-
-A quick way to reset the template to the [default one](/customization/templates-and-variables#default-template). May be useful if you've made a mistake or any unwanted changes to the template and want to start over.
+将书籍主笔记模板恢复为默认值。

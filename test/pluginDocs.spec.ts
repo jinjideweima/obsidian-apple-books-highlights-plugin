@@ -8,7 +8,7 @@ describe('Plugin documentation', () => {
     expect(path.join(process.cwd(), 'README.md')).toBeDefined();
   });
 
-  test('Check that Template variables section contains strictly a list of variables defined in IBook', async () => {
+  test('Check that templates doc contains all IBook and IAnnotation variables', async () => {
     const allowedBookVariables = {
       bookId: 'string',
       bookTitle: 'string',
@@ -37,17 +37,20 @@ describe('Plugin documentation', () => {
     const customizationDocPath = path.join(process.cwd(), 'docs', 'customization', 'templates-and-variables.md');
     const customizationDocContent = await fs.readFile(customizationDocPath, 'utf-8');
 
-    const templateVariablesSection = customizationDocContent.split('## Template variables')[1]?.split('## ')[0];
-    const listedVariablesInDoc = templateVariablesSection.match(/- `\{{2,3}(\w+)\}{2,3}`/gm)!;
+    // Extract all Handlebars variable references from the doc (both {{ }} and {{{ }}} forms)
+    const listedVariablesInDoc = customizationDocContent.match(/`\{{2,3}(\w+)\}{2,3}`/gm) || [];
+    const uniqueVariableNames = new Set(listedVariablesInDoc.map((v) => v.match(/`\{{2,3}(\w+)\}{2,3}`/)?.[1]).filter(Boolean));
 
-    expect(templateVariablesSection).toBeDefined();
+    // Every variable mentioned in the doc should be a valid IBook or IAnnotation field
+    for (const variableName of uniqueVariableNames) {
+      const isValidVariable = Object.keys(allAllowedVariables).includes(variableName!);
+      expect(isValidVariable, `Unknown variable "${variableName}" in docs`).toBeTruthy();
+    }
 
-    for (const listedVariable of listedVariablesInDoc) {
-      const variableName = listedVariable.match(/- `\{{2,3}(\w+)\}{2,3}`/)?.[1];
-      const isVariableInIBook = Object.keys(allAllowedVariables).includes(variableName!);
-
-      expect(variableName).toBeDefined();
-      expect(isVariableInIBook).toBeTruthy();
+    // All IBook fields should be documented (except bookPath which is internal)
+    const bookFields = Object.keys(allowedBookVariables).filter((k) => k !== 'bookPath');
+    for (const field of bookFields) {
+      expect(uniqueVariableNames.has(field), `IBook field "${field}" missing from docs`).toBeTruthy();
     }
   });
 });
