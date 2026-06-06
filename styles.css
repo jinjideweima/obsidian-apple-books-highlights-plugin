@@ -332,7 +332,8 @@
   transform: translateY(-1px);
 }
 
-.abkc-toggle {
+.abkc-toggle,
+.abkc-char-limit {
   align-items: center;
   background: color-mix(in srgb, var(--background-primary) 90%, var(--background-secondary));
   border: 1px solid var(--abkc-surface-border);
@@ -353,6 +354,15 @@
   accent-color: var(--interactive-accent);
   flex: 0 0 auto;
   margin: 0;
+}
+
+.abkc-char-limit-input {
+  background: transparent;
+  border: none;
+  color: var(--text-normal);
+  font-size: 13px;
+  padding: 0;
+  width: 52px;
 }
 
 .abkc-board {
@@ -377,6 +387,8 @@
   box-sizing: border-box;
   break-inside: avoid;
   color: var(--abkc-ink);
+  /* Make each card a query container so the action-button gap can scale with the card's own width. */
+  container-type: inline-size;
   display: block;
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', 'PingFang SC', sans-serif;
   height: auto;
@@ -597,7 +609,10 @@
 .abkc-card-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  justify-content: center;
+  /* Center the 4 buttons; gap scales with the card width but stays within a sane min/max,
+     so very wide cards don't blow the buttons apart. */
+  gap: clamp(4px, 3cqi, 14px);
   margin-top: 12px;
 }
 

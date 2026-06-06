@@ -78,19 +78,27 @@ const getCoverPath = (cover: string): string => {
 };
 
 const openHighlightsFolder = async (app: App, plugin: IBookHighlightsPlugin): Promise<void> => {
-  const folderPath = plugin.settings.highlightsFolder;
-  const folder = app.vault.getFolderByPath(folderPath);
+  // Prefer the user-configured library page (e.g. 我的图书馆.base).
+  const libraryPagePath = plugin.settings.libraryPagePath?.trim();
+
+  if (libraryPagePath) {
+    await app.workspace.openLinkText(libraryPagePath, '', false);
+    return;
+  }
+
+  // Otherwise reveal the highlights folder in the file explorer.
+  const folder = app.vault.getFolderByPath(plugin.settings.highlightsFolder);
 
   if (folder) {
-    // Reveal the highlights folder in the file explorer
     const fileExplorer = app.workspace.getLeavesOfType('file-explorer')[0];
 
     if (fileExplorer) {
       app.workspace.revealLeaf(fileExplorer);
+      return;
     }
-  } else {
-    await openCardsView(plugin);
   }
+
+  await openCardsView(plugin);
 };
 
 const renderStat = (container: HTMLElement, label: string, value: string | number, onClick: () => Promise<void>) => {

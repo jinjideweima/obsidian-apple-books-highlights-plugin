@@ -34,6 +34,14 @@ interface ToolbarState {
   onlyWithChapter: boolean;
 }
 
+// Rendering preferences toggled from the toolbar (not filters — they only affect how each card looks).
+interface RenderOptions {
+  showLocalNote: boolean;
+  maxChars: number;
+}
+
+const DEFAULT_MAX_CHARS = 500;
+
 const boundTocDocuments = new WeakSet<Document>();
 const boundTocCleanups: Array<() => void> = [];
 
@@ -131,6 +139,15 @@ const renderInlineHighlight = (container: HTMLElement, text: string): void => {
 
     container.createSpan({ text: line, cls: 'abkc-highlight-text' });
   });
+};
+
+// Cap a card's text length; <= 0 means no limit. Full text is always available on the card's own page.
+const truncate = (text: string, maxChars: number): string => {
+  if (maxChars <= 0 || text.length <= maxChars) {
+    return text;
+  }
+
+  return `${text.slice(0, maxChars).trimEnd()}…`;
 };
 
 const getTocHighlightIndex = (link: HTMLAnchorElement): string | null => {
@@ -257,6 +274,7 @@ const renderToolbar = (
   cards: IHighlightCard[],
   onFilter: (filteredCards: IHighlightCard[]) => void,
   filters: BoardFilters,
+  renderOptions: RenderOptions,
   options: ToolbarOptions = {},
 ) => {
   const toolbar = container.createDiv({ cls: 'abkc-toolbar' });
@@ -356,6 +374,26 @@ const renderToolbar = (
   });
   unreviewedToggle.querySelector<HTMLInputElement>('input')!.checked = state.onlyUnreviewed;
 
+  const showNoteToggle = createToggle(togglesGroup, '显示笔记', (enabled) => {
+    renderOptions.showLocalNote = enabled;
+    runFilter();
+  });
+  showNoteToggle.querySelector<HTMLInputElement>('input')!.checked = renderOptions.showLocalNote;
+
+  const charLimit = togglesGroup.createEl('label', { cls: 'abkc-char-limit' });
+  charLimit.createSpan({ text: '字数上限' });
+  const charLimitInput = charLimit.createEl('input', {
+    cls: 'abkc-char-limit-input',
+    attr: { type: 'number', min: '0', step: '50' },
+  });
+  charLimitInput.value = String(renderOptions.maxChars);
+  charLimitInput.addEventListener('change', () => {
+    const value = Number(charLimitInput.value);
+    renderOptions.maxChars = Number.isFinite(value) && value >= 0 ? value : DEFAULT_MAX_CHARS;
+    charLimitInput.value = String(renderOptions.maxChars);
+    runFilter();
+  });
+
   const randomButton = actionsGroup.createEl('button', {
     text: '随机一组',
     cls: 'abkc-button',
@@ -445,7 +483,7 @@ class EditNoteModal extends Modal {
   }
 }
 
-const renderCard = (app: App, board: HTMLElement, card: IHighlightCard, context: RenderContext) => {
+const renderCard = (app: App, board: HTMLElement, card: IHighlightCard, context: RenderContext, options: RenderOptions) => {
   const cardEl = board.createEl('article', {
     cls: `abkc-card abkc-card-${card.highlightColor}`,
     attr: {
@@ -473,12 +511,18 @@ const renderCard = (app: App, board: HTMLElement, card: IHighlightCard, context:
   }
 
   const highlightEl = cardEl.createDiv({ cls: 'abkc-card-highlight' });
-  renderInlineHighlight(highlightEl, card.highlight);
+  renderInlineHighlight(highlightEl, truncate(card.highlight, options.maxChars));
 
   if (card.appleNote) {
     const note = cardEl.createDiv({ cls: 'abkc-card-note' });
     note.createDiv({ text: '想法', cls: 'abkc-card-label' });
-    note.createDiv({ text: card.appleNote });
+    note.createDiv({ text: truncate(card.appleNote, options.maxChars) });
+  }
+
+  if (options.showLocalNote && card.localNote.trim()) {
+    const localNoteEl = cardEl.createDiv({ cls: 'abkc-card-note abkc-card-localnote' });
+    localNoteEl.createDiv({ text: '笔记', cls: 'abkc-card-label' });
+    renderInlineHighlight(localNoteEl.createDiv(), card.localNote);
   }
 
   cardEl.createDiv({ cls: 'abkc-card-rule' });
@@ -541,7 +585,8 @@ export const renderCardsBoard = (
 
   const toolbarHost = container.createDiv();
   const board = container.createDiv({ cls: 'abkc-board' });
-  const render = (filteredCards: IHighlightCard[]) => {
+  const renderOptions: RenderOptions = { showLocalNote: false, maxChars: DEFAULT_MAX_CHARS };
+  const render = (filteredCards: IHighlightCard[], scrollToLast = false) => {
     board.empty();
     countEl.setText(`${filteredCards.length} 张卡片`);
 
@@ -551,7 +596,13 @@ export const renderCardsBoard = (
     }
 
     for (const card of filteredCards) {
-      renderCard(app, board, card, context);
+      renderCard(app, board, card, context, renderOptions);
+    }
+
+    // Only scroll to the last-opened card on the initial render (returning from a card's page).
+    // Filtering / random / reset must NOT scroll — that was the jump-to-middle bug.
+    if (!scrollToLast) {
+      return;
     }
 
     const lastCardId = window.sessionStorage.getItem('abkc:last-card');
@@ -561,6 +612,7 @@ export const renderCardsBoard = (
           block: 'center',
           inline: 'nearest',
         });
+        window.sessionStorage.removeItem('abkc:last-card');
       });
     }
   };
@@ -578,14 +630,14 @@ export const renderCardsBoard = (
     onlyWithChapter: Boolean(context.initialOnlyWithChapter),
   };
 
-  renderToolbar(toolbarHost, cards, render, filters, {
+  renderToolbar(toolbarHost, cards, render, filters, renderOptions, {
     initialBookTitle,
     initialOnlyFavorite: Boolean(context.initialOnlyFavorite),
     initialOnlyUnreviewed: Boolean(context.initialOnlyUnreviewed),
     initialOnlyWithAppleNote: Boolean(context.initialOnlyWithAppleNote),
     initialOnlyWithChapter: Boolean(context.initialOnlyWithChapter),
   });
-  render(applyToolbarState(applyFilters(cards, filters), initialState));
+  render(applyToolbarState(applyFilters(cards, filters), initialState), true);
   bindNoteToc(container);
 };
 

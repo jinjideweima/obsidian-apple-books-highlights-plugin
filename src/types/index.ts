@@ -45,6 +45,8 @@ export interface IBookHighlightsPluginSettings {
   template: string;
   filenameTemplate: string;
   coverPathTemplate?: string;
+  // Vault link the dashboard "书籍" button opens (e.g. a library MOC or Base view).
+  libraryPagePath?: string;
   keepMeSectionOpeningDelimiter: string;
   keepMeSectionClosingDelimiter: string;
   keepMeSectionData?: Record<string, string>;

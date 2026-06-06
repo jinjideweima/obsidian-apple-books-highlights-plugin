@@ -54,6 +54,7 @@ export const defaultPluginSettings: IBookHighlightsPluginSettings = {
   template: defaultTemplate,
   filenameTemplate: `{{{${allowedFilenameTemplateVariables[0]}}}}`,
   coverPathTemplate: '',
+  libraryPagePath: '',
   keepMeSectionOpeningDelimiter: '%% keep-me %%',
   keepMeSectionClosingDelimiter: '%% /keep-me %%',
   keepMeSectionData: {},
@@ -80,6 +81,7 @@ export class IBookHighlightsSettingTab extends PluginSettingTab {
     this.addKeepMeSectionSetting(containerEl);
     this.addFilenameTemplateSetting(containerEl);
     this.addCoverPathTemplateSetting(containerEl);
+    this.addLibraryPagePathSetting(containerEl);
     this.addResetTemplateSetting(containerEl);
     this.addCredits(containerEl);
   }
@@ -258,6 +260,32 @@ export class IBookHighlightsSettingTab extends PluginSettingTab {
         });
       return text;
     });
+  }
+
+  addLibraryPagePathSetting(containerEl: HTMLElement): void {
+    new Setting(containerEl)
+      .setName('图书馆页面')
+      .setDesc(
+        createFragment((el) => {
+          el.appendText('阅读仪表盘里「书籍」按钮要打开的页面（相对 Vault 的链接，例如你的图书馆 MOC 或 Base 视图）。');
+          el.createEl('br');
+          el.appendText('示例：我的图书馆.base 或 我的图书馆.md');
+          el.createEl('br');
+          el.appendText('留空则改为在文件浏览器中显示导入目录。');
+        }),
+      )
+      .setClass('ibooks-highlights-library-page')
+      .addText((text) => {
+        text
+          .setPlaceholder('例如：我的图书馆.base')
+          .setValue(this.plugin.settings.libraryPagePath || '')
+          .onChange(async (value) => {
+            this.plugin.settings.libraryPagePath = value;
+
+            await this.plugin.saveSettings();
+          });
+        return text;
+      });
   }
 
   addKeepMeSectionSetting(containerEl: HTMLElement): void {

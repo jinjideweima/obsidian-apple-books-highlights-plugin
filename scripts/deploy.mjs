@@ -1,3 +1,4 @@
+/* oxlint-disable no-console -- CLI build script: console output is intentional */
 // Copy the built plugin (dist/) into your local Obsidian plugin folder.
 //
 // Set the target via OBSIDIAN_PLUGIN_DIR — either as an environment variable
