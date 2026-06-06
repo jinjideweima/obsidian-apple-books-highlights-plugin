@@ -7,8 +7,12 @@ import { extractBookCover } from '../../src/modules/epubChapters';
 import { VaultManagement } from '../../src/modules/vaultManagement';
 import { defaultTemplate } from '../../src/settings';
 import aggregatedBooksAndAnnotations from '../fixtures/annotationProcessing/aggregatedBooksAndAnnotations.json' with { type: 'json' };
+import { NoticeMock } from '../mocks/obsidian';
 
-vi.mock('../../src/modules/epubChapters', () => ({ extractBookCover: vi.fn() }));
+vi.mock('../../src/modules/epubChapters', () => ({
+  extractBookCover: vi.fn(),
+  isEpubPermissionError: (error: { code?: string } | null) => error?.code === 'EPERM' || error?.code === 'EACCES',
+}));
 
 describe('importHighlights', () => {
   const mockApp = {
@@ -185,5 +189,20 @@ describe('importHighlights', () => {
     await importHighlights(vaultManagement, mockSettings);
 
     expect(upsertBinarySpy).not.toHaveBeenCalled();
+  });
+
+  test('Should show a single access notice when covers fail to read due to permissions', async () => {
+    const vaultManagement = new VaultManagement(mockApp, mockSettings);
+
+    vi.spyOn(annotationProcessing, 'aggregateBooksWithAnnotations').mockResolvedValue([{ ...aggregatedBooksAndAnnotations[0] }]);
+    vi.mocked(extractBookCover).mockRejectedValue(Object.assign(new Error('Operation not permitted'), { code: 'EPERM' }));
+    const createBookFileSpy = vi.spyOn(vaultManagement, 'createBookFile');
+
+    await importHighlights(vaultManagement, mockSettings);
+
+    // The import still completes...
+    expect(createBookFileSpy).toHaveBeenCalled();
+    // ...and the user gets one actionable access notice.
+    expect(NoticeMock).toHaveBeenCalledWith(expect.stringContaining('完全磁盘访问'), 0);
   });
 });

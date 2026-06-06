@@ -1,6 +1,6 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import type { IBookWithAnnotations } from '../../../src/types';
-import { extractBookCover, inferMissingChapters } from '../../../src/modules/epubChapters';
+import { extractBookCover, inferMissingChapters, isEpubPermissionError } from '../../../src/modules/epubChapters';
 
 // ─── EPUB fixtures ─────────────────────────────────────────────────────────────
 
@@ -479,5 +479,26 @@ describe('extractBookCover', () => {
     const result = await extractBookCover(makeBook({ bookPath: undefined }));
 
     expect(result).toBeNull();
+  });
+
+  test('rethrows permission errors so the import can prompt for Full Disk Access', async () => {
+    mockStat.mockRejectedValue(Object.assign(new Error('Operation not permitted'), { code: 'EPERM' }));
+
+    await expect(extractBookCover(coverBook())).rejects.toMatchObject({ code: 'EPERM' });
+  });
+
+  test('returns null (does not throw) when the EPUB file is simply missing', async () => {
+    mockStat.mockRejectedValue(Object.assign(new Error('no such file'), { code: 'ENOENT' }));
+
+    const result = await extractBookCover(coverBook());
+
+    expect(result).toBeNull();
+  });
+
+  test('isEpubPermissionError flags EPERM/EACCES only', () => {
+    expect(isEpubPermissionError({ code: 'EPERM' })).toBe(true);
+    expect(isEpubPermissionError({ code: 'EACCES' })).toBe(true);
+    expect(isEpubPermissionError({ code: 'ENOENT' })).toBe(false);
+    expect(isEpubPermissionError(null)).toBe(false);
   });
 });

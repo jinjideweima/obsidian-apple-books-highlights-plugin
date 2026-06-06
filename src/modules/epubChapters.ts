@@ -162,6 +162,12 @@ const createZipReader = async (rootPath: string): Promise<EpubFileReader> => {
   };
 };
 
+export const isEpubPermissionError = (error: unknown): boolean => {
+  const code = (error as { code?: string } | null)?.code;
+
+  return code === 'EPERM' || code === 'EACCES';
+};
+
 const createReader = async (bookPath: string): Promise<EpubFileReader | null> => {
   if (!bookPath) {
     return null;
@@ -173,6 +179,13 @@ const createReader = async (bookPath: string): Promise<EpubFileReader | null> =>
 
     return stat.isDirectory() ? createDirectoryReader(bookPath) : createZipReader(bookPath);
   } catch (error) {
+    // Surface permission errors (e.g. the book lives in iCloud and Obsidian lacks Full Disk Access)
+    // so the import flow can prompt the user. Other errors — a missing file, an undownloaded iCloud
+    // placeholder — degrade silently.
+    if (isEpubPermissionError(error)) {
+      throw error;
+    }
+
     console.warn(`Apple Books Knowledge Cards: 无法读取 EPUB：${bookPath}`, error);
     return null;
   }
@@ -534,6 +547,10 @@ export const extractBookCover = async (book: IBookWithAnnotations): Promise<{ da
 
     return { data, extension };
   } catch (error) {
+    if (isEpubPermissionError(error)) {
+      throw error;
+    }
+
     console.warn(`Apple Books Knowledge Cards: 无法提取封面：${book.bookTitle}`, error);
     return null;
   }
