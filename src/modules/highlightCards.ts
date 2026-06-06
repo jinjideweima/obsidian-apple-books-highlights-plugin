@@ -171,23 +171,34 @@ ${localNote}
 `;
 };
 
-const getCardRelativePath = (bookFilename: string, highlightIndex: number): string => {
-  const paddedIndex = String(highlightIndex).padStart(3, '0');
-
-  return joinPath('cards', bookFilename, `摘录-${paddedIndex}.md`);
+const getCardRelativePath = (bookFilename: string, annotationId: string): string => {
+  return joinPath('cards', bookFilename, `${annotationId}.md`);
 };
 
 export const importHighlightCards = async (vault: VaultManagement, book: IBookWithAnnotations, bookFilename: string): Promise<void> => {
+  const cardsFolder = joinPath(vault.getHighlightsFolder(), 'cards', bookFilename);
   await vault.ensureFolder(joinPath(vault.getHighlightsFolder(), 'cards'));
-  await vault.ensureFolder(joinPath(vault.getHighlightsFolder(), 'cards', bookFilename));
+  await vault.ensureFolder(cardsFolder);
+
+  const expectedFiles = new Set<string>();
 
   for (const [index, annotation] of book.annotations.entries()) {
     const displayIndex = index + 1;
-    const relativePath = getCardRelativePath(bookFilename, displayIndex);
+    const annotationId = getAnnotationId(book.bookId, annotation.highlightLocation);
+    const relativePath = getCardRelativePath(bookFilename, annotationId);
     const filePath = joinPath(vault.getHighlightsFolder(), relativePath);
     const existingContent = await vault.readFileIfExists(filePath);
     const content = buildCardContent(book, annotation, displayIndex, existingContent);
 
     await vault.upsertFile(filePath, content);
+    expectedFiles.add(filePath);
+  }
+
+  // Clean up orphan cards (deleted highlights, old index-based filenames, etc.)
+  const existingFiles = await vault.listFiles(cardsFolder);
+  for (const file of existingFiles) {
+    if (file.endsWith('.md') && !expectedFiles.has(file)) {
+      await vault.deleteFile(file);
+    }
   }
 };

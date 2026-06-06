@@ -15,8 +15,9 @@ describe('importHighlights', () => {
       createFolder: vi.fn(),
       create: vi.fn(),
       modify: vi.fn(),
+      delete: vi.fn(),
       adapter: {
-        list: vi.fn(),
+        list: vi.fn().mockResolvedValue({ files: [], folders: [] }),
         rename: vi.fn(),
       },
     },
@@ -61,8 +62,9 @@ describe('importHighlights', () => {
     expect(createBookFileSpy).toHaveBeenCalledTimes(4);
     expect(createBookFileSpy).toHaveBeenNthCalledWith(1, 'iPhone User Guide', expect.any(String));
     expectBookContent(createBookFileSpy.mock.calls[0][1], 'iPhone User Guide', 'THBFYNJKTGFTTVCGSAE1');
+    // Card filenames use stable annotationId instead of position index
     expect(upsertFileSpy).toHaveBeenCalledWith(
-      'ibooks-highlights/cards/iPhone User Guide/摘录-001.md',
+      'ibooks-highlights/cards/iPhone User Guide/ibooks-thbfynjk-7ed3b8a9.md',
       expect.stringContaining('# 摘录 1'),
     );
   });

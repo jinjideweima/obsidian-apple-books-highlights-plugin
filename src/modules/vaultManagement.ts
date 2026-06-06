@@ -84,6 +84,23 @@ export class VaultManagement {
     return this.vault.cachedRead(existingFile);
   }
 
+  async listFiles(folderPath: string): Promise<string[]> {
+    try {
+      const result = await this.vault.adapter.list(folderPath);
+      return result.files;
+    } catch {
+      return [];
+    }
+  }
+
+  async deleteFile(filePath: string): Promise<void> {
+    const existingFile = this.vault.getFileByPath(filePath);
+
+    if (existingFile) {
+      await this.vault.delete(existingFile);
+    }
+  }
+
   async backupAllHighlights(): Promise<void> {
     const highlightsFolderPath = this.getHighlightsFolderPath();
 
