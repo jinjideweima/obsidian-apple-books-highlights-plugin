@@ -52,11 +52,6 @@ export default defineConfig({
         'main.ts',
         'src/**/*.ts'
       ],
-      exclude: [
-        // 'main.ts',
-        'src/modals/*.ts',
-        'src/settings/*.ts'
-      ],
     },
   },
 });
