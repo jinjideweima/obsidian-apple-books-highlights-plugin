@@ -55,6 +55,7 @@ describe('IBookHighlightsPlugin', () => {
         // Fix: support async callbacks in onLayoutReady
         onLayoutReady: vi.fn().mockImplementation(async (cb: () => Promise<void> | void) => await cb()),
         on: vi.fn(),
+        detachLeavesOfType: vi.fn(),
       },
     } as any;
   });

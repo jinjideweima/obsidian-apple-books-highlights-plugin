@@ -10,7 +10,7 @@ source: Apple Books
 book_id: "{{bookId}}"
 annotation_count: {{annotations.length}}
 status: "{{#if bookFinishedDate}}已读{{else}}在读{{/if}}"
-cover: "[[附件/书封/{{{bookTitle}}} - {{{bookAuthor}}}.jpg]]"
+{{#if bookCoverUrl}}cover: "{{{bookCoverUrl}}}"{{/if}}
 cssclasses:
   - wide-apple-book
 tags:
@@ -43,7 +43,7 @@ const allowedFilenameTemplateVariables = [
 ];
 
 export const defaultPluginSettings: IBookHighlightsPluginSettings = {
-  highlightsFolder: '10 Sources/ibooks-dev',
+  highlightsFolder: 'ibooks-highlights',
   backup: false,
   importOnStart: false,
   highlightsSortingCriterion: 'creationDateOldToNew',

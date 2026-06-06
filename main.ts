@@ -5,7 +5,7 @@ import { VaultManagement } from './src/modules/vaultManagement';
 import { defaultPluginSettings, IBookHighlightsSettingTab } from './src/settings';
 import { saveKeepMeSectionData } from './src/utils/manageKeepMeSection';
 import { showFailedImportNotice, showErrorInConsole } from './src/utils/notificationCenter';
-import { renderCardsBoard } from './src/views/cardRenderer';
+import { cleanupCardRenderer, renderCardsBoard } from './src/views/cardRenderer';
 import { CARDS_VIEW_TYPE, CardsView, openCardsView } from './src/views/cardsView';
 import { DASHBOARD_VIEW_TYPE, DashboardView, openDashboardView, renderDashboard } from './src/views/dashboardView';
 
@@ -50,7 +50,11 @@ export default class IBookHighlightsPlugin extends Plugin {
     );
   }
 
-  onunload() {}
+  onunload() {
+    cleanupCardRenderer();
+    this.app.workspace.detachLeavesOfType(CARDS_VIEW_TYPE);
+    this.app.workspace.detachLeavesOfType(DASHBOARD_VIEW_TYPE);
+  }
 
   async loadSettings() {
     this.settings = Object.assign({}, defaultPluginSettings, (await this.loadData()) as Partial<IBookHighlightsPluginSettings>);

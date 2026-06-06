@@ -20,7 +20,7 @@ describe('Default settings', () => {
   });
 
   test('Should check that default settings have the expected default values', () => {
-    expect(defaultPluginSettings.highlightsFolder).toBe('10 Sources/ibooks-dev');
+    expect(defaultPluginSettings.highlightsFolder).toBe('ibooks-highlights');
     expect(defaultPluginSettings.backup).toBe(false);
     expect(defaultPluginSettings.importOnStart).toBe(false);
     expect(defaultPluginSettings.highlightsSortingCriterion).toBe('creationDateOldToNew');

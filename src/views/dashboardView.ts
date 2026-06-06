@@ -41,7 +41,14 @@ const getRecentCards = (cards: IHighlightCard[]): IHighlightCard[] => {
 };
 
 const getRandomCards = (cards: IHighlightCard[], count = 4): IHighlightCard[] => {
-  return [...cards].sort(() => Math.random() - 0.5).slice(0, count);
+  const shuffled = [...cards];
+
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+
+  return shuffled.slice(0, count);
 };
 
 const trimText = (value: string, maxLength: number): string => {
@@ -70,8 +77,20 @@ const getCoverPath = (cover: string): string => {
   return cover.match(/\[\[([^\]]+)\]\]/)?.[1] || '';
 };
 
-const openLibrary = async (app: App): Promise<void> => {
-  await app.workspace.openLinkText('我的图书馆.base', '', 'tab');
+const openHighlightsFolder = async (app: App, plugin: IBookHighlightsPlugin): Promise<void> => {
+  const folderPath = plugin.settings.highlightsFolder;
+  const folder = app.vault.getFolderByPath(folderPath);
+
+  if (folder) {
+    // Reveal the highlights folder in the file explorer
+    const fileExplorer = app.workspace.getLeavesOfType('file-explorer')[0];
+
+    if (fileExplorer) {
+      app.workspace.revealLeaf(fileExplorer);
+    }
+  } else {
+    await openCardsView(plugin);
+  }
 };
 
 const renderStat = (container: HTMLElement, label: string, value: string | number, onClick: () => Promise<void>) => {
@@ -158,13 +177,13 @@ const renderDashboardContent = async (
     heroActions.createEl('button', { text: '打开摘录墙', cls: 'abkc-dashboard-primary' }).addEventListener('click', async () => {
       await openCardsView(plugin);
     });
-    heroActions.createEl('button', { text: '我的图书馆', cls: 'abkc-dashboard-secondary' }).addEventListener('click', async () => {
-      await app.workspace.openLinkText('我的图书馆.base', '', false);
+    heroActions.createEl('button', { text: '浏览书籍', cls: 'abkc-dashboard-secondary' }).addEventListener('click', async () => {
+      await openHighlightsFolder(app, plugin);
     });
 
     const statGrid = hero.createDiv({ cls: 'abkc-dashboard-stats' });
     renderStat(statGrid, '书籍', stats.bookCount, async () => {
-      await openLibrary(app);
+      await openHighlightsFolder(app, plugin);
     });
     renderStat(statGrid, '摘录', stats.highlightCount, async () => {
       await openCardsView(plugin);

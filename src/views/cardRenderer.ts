@@ -35,6 +35,7 @@ interface ToolbarState {
 }
 
 const boundTocDocuments = new WeakSet<Document>();
+const boundTocCleanups: Array<() => void> = [];
 
 const colorLabelMap: Record<string, string> = {
   underline: '下划线',
@@ -167,37 +168,40 @@ const bindNoteToc = (container: HTMLElement): void => {
 
   boundTocDocuments.add(doc);
 
-  doc.addEventListener(
-    'click',
-    (event) => {
-      const link = (event.target as HTMLElement | null)?.closest<HTMLAnchorElement>('.abkc-note-toc a, a[href^="#摘录"]');
+  const handler = (event: MouseEvent) => {
+    const link = (event.target as HTMLElement | null)?.closest<HTMLAnchorElement>('.abkc-note-toc a, a[href^="#摘录"]');
 
-      if (!link) {
-        return;
-      }
+    if (!link) {
+      return;
+    }
 
-      const highlightIndex = getTocHighlightIndex(link);
+    const highlightIndex = getTocHighlightIndex(link);
 
-      if (!highlightIndex) {
-        return;
-      }
+    if (!highlightIndex) {
+      return;
+    }
 
-      const scope = getTocScope(link);
-      const target =
-        scope.querySelector<HTMLElement>(`.abkc-root [data-highlight-index="${CSS.escape(highlightIndex)}"]`) ||
-        doc.querySelector<HTMLElement>(`.abkc-root [data-highlight-index="${CSS.escape(highlightIndex)}"]`);
+    const scope = getTocScope(link);
+    const target =
+      scope.querySelector<HTMLElement>(`.abkc-root [data-highlight-index="${CSS.escape(highlightIndex)}"]`) ||
+      doc.querySelector<HTMLElement>(`.abkc-root [data-highlight-index="${CSS.escape(highlightIndex)}"]`);
 
-      if (!target) {
-        return;
-      }
+    if (!target) {
+      return;
+    }
 
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      focusCard(target);
-    },
-    true,
-  );
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    focusCard(target);
+  };
+
+  doc.addEventListener('click', handler, true);
+
+  boundTocCleanups.push(() => {
+    doc.removeEventListener('click', handler, true);
+    boundTocDocuments.delete(doc);
+  });
 };
 
 const createSelect = (
@@ -368,7 +372,12 @@ const renderToolbar = (
   });
   randomButton.addEventListener('click', () => {
     const filteredCards = applyToolbarState(cards, state);
-    const shuffledCards = [...filteredCards].sort(() => Math.random() - 0.5).slice(0, 12);
+    const shuffledCards = [...filteredCards];
+    for (let i = shuffledCards.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffledCards[i], shuffledCards[j]] = [shuffledCards[j], shuffledCards[i]];
+    }
+    shuffledCards.splice(12);
     onFilter(shuffledCards);
   });
   const resetButton = actionsGroup.createEl('button', {
@@ -491,6 +500,7 @@ const renderCard = (app: App, board: HTMLElement, card: IHighlightCard, context:
   });
   actions.createEl('button', { text: '复制', cls: 'abkc-action-button' }).addEventListener('click', async () => {
     await navigator.clipboard.writeText(`> ${card.highlight}\n\n— ${card.bookTitle}`);
+    showNotice('摘录已复制到剪贴板');
   });
   actions.createEl('button', { text: '打开', cls: 'abkc-action-button' }).addEventListener('click', async () => {
     window.sessionStorage.setItem('abkc:last-card', card.annotationId);
@@ -577,4 +587,12 @@ export const renderCardsBoard = (
   });
   render(applyToolbarState(applyFilters(cards, filters), initialState));
   bindNoteToc(container);
+};
+
+export const cleanupCardRenderer = (): void => {
+  for (const cleanup of boundTocCleanups) {
+    cleanup();
+  }
+
+  boundTocCleanups.length = 0;
 };
