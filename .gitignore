@@ -5,6 +5,9 @@
 # npm
 node_modules
 
+# Local deploy target (OBSIDIAN_PLUGIN_DIR for `npm run deploy`)
+.env.local
+
 # tests
 coverage
 # Don't include the compiled main.js file in the repo.

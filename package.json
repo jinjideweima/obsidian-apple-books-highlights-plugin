@@ -9,6 +9,8 @@
 		"copy-assets": "cp manifest.json dist/manifest.json && cp styles.css dist/styles.css",
 		"coverage": "vitest run --coverage",
 		"dev": "node esbuild.config.mjs",
+		"deploy": "node scripts/deploy.mjs",
+		"build:deploy": "npm run build && npm run deploy",
 		"docs:build": "vitepress build docs",
 		"docs:dev": "vitepress dev docs --port 3000",
 		"docs:preview": "vitepress preview docs",
