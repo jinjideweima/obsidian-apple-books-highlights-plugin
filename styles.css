@@ -681,24 +681,24 @@
   container-type: inline-size;
   min-height: 100%;
   overflow: auto;
-  padding: 22px;
+  padding: 30px;
 }
 
 .abkc-dashboard-hero {
   align-items: stretch;
   background:
-    radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--interactive-accent) 8%, transparent), transparent 32%),
-    linear-gradient(180deg, color-mix(in srgb, var(--background-primary) 98%, transparent), var(--abkc-dashboard-surface));
+    radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--interactive-accent) 5%, transparent), transparent 40%),
+    linear-gradient(180deg, color-mix(in srgb, var(--background-primary) 99%, transparent), var(--abkc-dashboard-surface));
   border: 1px solid var(--abkc-dashboard-border);
-  border-radius: 28px;
+  border-radius: 30px;
   box-shadow:
-    0 1px 1px rgba(0, 0, 0, 0.025),
-    0 12px 34px rgba(0, 0, 0, 0.045);
+    0 1px 1px rgba(0, 0, 0, 0.018),
+    0 24px 56px rgba(0, 0, 0, 0.05);
   display: grid;
-  gap: 28px;
+  gap: 36px;
   grid-template-columns: minmax(0, 1fr) minmax(320px, 0.88fr);
-  margin-bottom: 18px;
-  padding: 26px;
+  margin-bottom: 24px;
+  padding: 34px;
 }
 
 .abkc-dashboard-intro {
@@ -715,11 +715,11 @@
 }
 
 .abkc-dashboard-hero h1 {
-  font-size: clamp(32px, 5.4cqi, 54px);
-  font-weight: 780;
-  letter-spacing: -0.06em;
-  line-height: 0.98;
-  margin: 10px 0 12px;
+  font-size: clamp(34px, 5.4cqi, 56px);
+  font-weight: 700;
+  letter-spacing: -0.022em;
+  line-height: 1.05;
+  margin: 12px 0 14px;
 }
 
 .abkc-dashboard-hero p {
@@ -780,7 +780,7 @@
 .abkc-dashboard-stats {
   align-content: stretch;
   display: grid;
-  gap: 10px 12px;
+  gap: 14px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
@@ -792,8 +792,8 @@
   border: 1px solid var(--abkc-dashboard-border);
   border-radius: 20px;
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.36) inset,
-    0 8px 18px rgba(0, 0, 0, 0.035);
+    0 1px 0 rgba(255, 255, 255, 0.4) inset,
+    0 10px 28px rgba(0, 0, 0, 0.04);
   box-sizing: border-box;
   color: var(--text-normal);
   cursor: pointer;
@@ -826,8 +826,8 @@
   color: var(--text-normal);
   display: block;
   font-size: clamp(28px, 4.2cqi, 42px);
-  font-weight: 800;
-  letter-spacing: -0.06em;
+  font-weight: 700;
+  letter-spacing: -0.03em;
   line-height: 1;
   margin: 0 0 8px;
   max-width: 100%;
@@ -859,9 +859,9 @@
   background: var(--abkc-dashboard-surface);
   border: 1px solid var(--abkc-dashboard-border);
   border-radius: 24px;
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.035);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.04);
   min-width: 0;
-  padding: 16px;
+  padding: 22px;
 }
 
 .abkc-dashboard-section-header {
@@ -877,9 +877,10 @@
 }
 
 .abkc-dashboard-section h2 {
-  font-size: 18px;
-  letter-spacing: -0.02em;
-  margin: 0 0 14px;
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  margin: 0 0 16px;
 }
 
 .abkc-dashboard-section-header h2 {
@@ -946,9 +947,9 @@
 
 .abkc-dashboard-root button.abkc-dashboard-book:hover,
 .abkc-dashboard-root button.abkc-dashboard-highlight:hover {
-  border-color: color-mix(in srgb, var(--interactive-accent) 32%, var(--abkc-dashboard-border));
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
-  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--interactive-accent) 22%, var(--abkc-dashboard-border));
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.07);
+  transform: translateY(-2px);
 }
 
 .abkc-dashboard-root button.abkc-dashboard-book {
