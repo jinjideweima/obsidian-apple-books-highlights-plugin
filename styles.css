@@ -689,7 +689,7 @@
 }
 
 .abkc-dashboard-hero {
-  align-items: stretch;
+  align-items: center;
   background:
     radial-gradient(125% 125% at 100% 0%, color-mix(in srgb, var(--interactive-accent) 7%, transparent), transparent 46%),
     var(--abkc-dashboard-card);
@@ -782,7 +782,7 @@
 }
 
 .abkc-dashboard-stats {
-  align-content: stretch;
+  align-content: start;
   display: grid;
   gap: 14px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -802,8 +802,9 @@
   display: flex;
   flex-direction: column;
   font: inherit;
-  justify-content: flex-start;
-  min-height: 104px;
+  justify-content: center;
+  min-height: 96px;
+  overflow: hidden;
   padding: 16px;
   position: relative;
   text-align: left;
@@ -826,29 +827,29 @@
 .abkc-dashboard-stat-icon {
   align-items: center;
   background: color-mix(in srgb, var(--abkc-stat-accent, var(--interactive-accent)) 15%, transparent);
-  border-radius: 11px;
+  border-radius: 10px;
   color: var(--abkc-stat-accent, var(--interactive-accent));
   display: flex;
   flex: 0 0 auto;
-  height: 32px;
+  height: 28px;
   justify-content: center;
-  margin-bottom: 12px;
-  width: 32px;
+  margin-bottom: 8px;
+  width: 28px;
 }
 
 .abkc-dashboard-stat-icon svg {
-  height: 18px;
-  width: 18px;
+  height: 16px;
+  width: 16px;
 }
 
 .abkc-dashboard-stat-value {
   color: var(--text-normal);
   display: block;
-  font-size: clamp(28px, 4.2cqi, 42px);
+  font-size: clamp(26px, 3.4cqi, 34px);
   font-weight: 700;
   letter-spacing: -0.03em;
   line-height: 1;
-  margin: 0 0 8px;
+  margin: 0 0 6px;
   max-width: 100%;
 }
 
