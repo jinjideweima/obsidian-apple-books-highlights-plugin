@@ -23,7 +23,8 @@ const getStats = (books: IBookNoteSummary[], cards: IHighlightCard[]): LibrarySt
 };
 
 const getRecentBooks = (books: IBookNoteSummary[]): IBookNoteSummary[] => {
-  return [...books].sort((a, b) => b.annotationCount - a.annotationCount).slice(0, 6);
+  // Take up to 12; the CSS grid auto-fits columns to width, so wider screens fill more in (6–12).
+  return [...books].sort((a, b) => b.annotationCount - a.annotationCount).slice(0, 12);
 };
 
 const getRecentCards = (cards: IHighlightCard[]): IHighlightCard[] => {
@@ -113,8 +114,9 @@ const renderStat = (
   stat.setAttr('style', `--abkc-stat-accent: ${accent}`);
   const iconEl = stat.createDiv({ cls: 'abkc-dashboard-stat-icon' });
   setIcon(iconEl, icon);
-  stat.createDiv({ text: String(value), cls: 'abkc-dashboard-stat-value' });
-  stat.createDiv({ text: label, cls: 'abkc-dashboard-stat-label' });
+  const text = stat.createDiv({ cls: 'abkc-dashboard-stat-text' });
+  text.createDiv({ text: String(value), cls: 'abkc-dashboard-stat-value' });
+  text.createDiv({ text: label, cls: 'abkc-dashboard-stat-label' });
   stat.addEventListener('click', async () => {
     await onClick();
   });
@@ -234,7 +236,9 @@ const renderDashboardContent = async (
     }
 
     const recentSection = mainGrid.createDiv({ cls: 'abkc-dashboard-section' });
-    recentSection.createEl('h2', { text: '最近摘录' });
+    const recentHeader = recentSection.createDiv({ cls: 'abkc-dashboard-section-header' });
+    recentHeader.createEl('h2', { text: '最近摘录' });
+    recentSection.createEl('p', { text: '按时间排序，最新加入的摘录排在最前面。', cls: 'abkc-dashboard-muted' });
     const recentList = recentSection.createDiv({ cls: 'abkc-dashboard-highlights' });
     for (const card of getRecentCards(cards)) {
       renderHighlight(app, recentList, card);

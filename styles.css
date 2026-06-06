@@ -789,7 +789,7 @@
 }
 
 .abkc-dashboard-stat {
-  align-items: flex-start;
+  align-items: center;
   appearance: none;
   -webkit-appearance: none;
   background: var(--abkc-dashboard-soft);
@@ -800,12 +800,13 @@
   color: var(--text-normal);
   cursor: pointer;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   font: inherit;
-  justify-content: center;
-  min-height: 96px;
+  gap: 14px;
+  justify-content: flex-start;
+  min-height: 84px;
   overflow: hidden;
-  padding: 16px;
+  padding: 16px 18px;
   position: relative;
   text-align: left;
   transition:
@@ -826,30 +827,36 @@
 
 .abkc-dashboard-stat-icon {
   align-items: center;
-  background: color-mix(in srgb, var(--abkc-stat-accent, var(--interactive-accent)) 15%, transparent);
-  border-radius: 10px;
+  background: color-mix(in srgb, var(--abkc-stat-accent, var(--interactive-accent)) 16%, transparent);
+  border-radius: 11px;
   color: var(--abkc-stat-accent, var(--interactive-accent));
   display: flex;
   flex: 0 0 auto;
-  height: 28px;
+  height: 40px;
   justify-content: center;
-  margin-bottom: 8px;
-  width: 28px;
+  width: 40px;
 }
 
 .abkc-dashboard-stat-icon svg {
-  height: 16px;
-  width: 16px;
+  height: 21px;
+  width: 21px;
+}
+
+.abkc-dashboard-stat-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
 }
 
 .abkc-dashboard-stat-value {
   color: var(--text-normal);
   display: block;
-  font-size: clamp(26px, 3.4cqi, 34px);
+  font-size: clamp(24px, 2.8cqi, 30px);
   font-weight: 700;
   letter-spacing: -0.03em;
   line-height: 1;
-  margin: 0 0 6px;
+  margin: 0;
   max-width: 100%;
 }
 
@@ -892,6 +899,7 @@
   gap: 12px;
   justify-content: space-between;
   margin-bottom: 10px;
+  min-height: 34px;
 }
 
 .abkc-dashboard-section-wide {
@@ -1053,12 +1061,12 @@
 }
 
 .abkc-dashboard-root.abkc-mobile .abkc-dashboard-stat {
-  min-height: 92px;
-  padding: 14px;
+  min-height: 76px;
+  padding: 14px 16px;
 }
 
 .abkc-dashboard-root.abkc-mobile .abkc-dashboard-stat-value {
-  font-size: 28px;
+  font-size: 26px;
 }
 
 @container (max-width: 920px) {
