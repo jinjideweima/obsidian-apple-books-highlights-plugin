@@ -323,5 +323,20 @@ describe('manageKeepMeSection', () => {
     });
   });
 
-  test.todo('Should preserve the Keep Me section content if the book file is deleted and re-imported again');
+  test('Should preserve the Keep Me section content if the book file is deleted and re-imported again', () => {
+    // The Keep Me content lives in plugin settings (keyed by filename), not only in the file,
+    // so deleting the file does not lose it. A re-import re-embeds it into freshly rendered content.
+    const preservedNote = 'This is a great guide!📕 I learned so much from it.\nDefinitely need to recommend it to Aaron. 😎🤜🤛😎';
+    settings.keepMeSectionData = { 'iPhone User Guide': preservedNote };
+
+    const restoredNote = getKeepMeSectionDataFromSettings('iPhone User Guide', settings);
+    expect(restoredNote).toBe(preservedNote);
+
+    const freshlyRenderedContent = `# iPhone User Guide\n\n${settings.keepMeSectionOpeningDelimiter}\n${settings.keepMeSectionClosingDelimiter}`;
+    const reImportedContent = embedKeepMeSectionDataIntoBookFile(restoredNote, freshlyRenderedContent, settings);
+
+    expect(reImportedContent).toBe(
+      `# iPhone User Guide\n\n${settings.keepMeSectionOpeningDelimiter}\n${preservedNote}\n${settings.keepMeSectionClosingDelimiter}`,
+    );
+  });
 });

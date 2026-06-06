@@ -30,6 +30,15 @@ export default defineConfig({
       },
       {
         test: {
+          include: ['test/modals/**/*.spec.ts'],
+          name: { label: 'modals', color: 'magenta' },
+          alias: {
+            obsidian: new URL('./test/mocks/obsidian.ts', import.meta.url).pathname,
+          },
+        },
+      },
+      {
+        test: {
           include: ['test/*.spec.ts'],
           name: { label: 'uncategorized', color: 'green' },
         },

@@ -18,6 +18,10 @@ import {
   destroyTestDatabaseTables,
 } from '../../mocks/mockedDatabaseSetup';
 
+// Hoisted to the top level so vitest can apply it before any test runs.
+// Individual tests still override child_process.spawn via vi.mocked(...).mockReturnValue(...).
+vi.mock('child_process', { spy: true });
+
 describe('dataFetching', () => {
   test('Should have the correct env variables defined in vitest config', () => {
     setPathsForTestEnvironment();
@@ -66,7 +70,6 @@ describe('dataFetching', () => {
     });
 
     test('Should throw an error when no books are found', async () => {
-      vi.mock('child_process', { spy: true });
       const mockStdout = {
         [Symbol.asyncIterator]: async function* () {
           yield Buffer.from('[]');
@@ -126,7 +129,6 @@ describe('dataFetching', () => {
     });
 
     test('Should throw an error when no highlights are found', async () => {
-      vi.mock('child_process', { spy: true });
       const mockStdout = {
         [Symbol.asyncIterator]: async function* () {
           yield Buffer.from('[]');
@@ -207,7 +209,6 @@ describe('dataFetching', () => {
       if (event === 'close') setTimeout(() => cb(1), 0);
       return mockOn;
     });
-    vi.mock('child_process', { spy: true });
     vi.mocked(child_process.spawn).mockReturnValue({
       stdout: mockStdout,
       stderr: mockStderr,
@@ -231,7 +232,6 @@ describe('dataFetching', () => {
       if (event === 'close') setTimeout(() => cb(1), 0);
       return mockOn;
     });
-    vi.mock('child_process', { spy: true });
     vi.mocked(child_process.spawn).mockReturnValue({
       stdout: mockStdout,
       stderr: mockStderr,
@@ -242,7 +242,6 @@ describe('dataFetching', () => {
 
   test('executeDbQuery should handle non-buffer chunks from stdout', async () => {
     const { executeDbQuery } = await import('../../../src/utils/databaseQuery');
-    vi.mock('child_process', { spy: true });
     const mockStdout = {
       [Symbol.asyncIterator]: async function* () {
         yield '[]'; // string, not Buffer
@@ -268,7 +267,6 @@ describe('dataFetching', () => {
 
   test('executeDbQuery should handle non-buffer chunks from stderr', async () => {
     const { executeDbQuery } = await import('../../../src/utils/databaseQuery');
-    vi.mock('child_process', { spy: true });
     const mockStdout = {
       [Symbol.asyncIterator]: async function* () {
         yield Buffer.from('');
@@ -293,7 +291,6 @@ describe('dataFetching', () => {
 
   test('executeDbQuery should handle process termination by signal', async () => {
     const { executeDbQuery } = await import('../../../src/utils/databaseQuery');
-    vi.mock('child_process', { spy: true });
     const mockStdout = {
       [Symbol.asyncIterator]: async function* () {
         yield Buffer.from('');
@@ -318,7 +315,6 @@ describe('dataFetching', () => {
 
   test('executeDbQuery should handle process termination by null signal', async () => {
     const { executeDbQuery } = await import('../../../src/utils/databaseQuery');
-    vi.mock('child_process', { spy: true });
     const mockStdout = {
       [Symbol.asyncIterator]: async function* () {
         yield Buffer.from('');

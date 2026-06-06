@@ -124,7 +124,12 @@ describe('templateProcessing', () => {
     expect(compiledContent).toEqual(renderedTemplateWithPreservedNewlines);
   });
 
-  test.todo('template compilation errors or invalid templates');
+  test('Should surface compilation errors for invalid templates', () => {
+    // Mismatched block helpers are invalid Handlebars and must raise.
+    expect(() => compileTemplate('{{#each annotations}}{{/if}}')({})).toThrow();
+    // An unclosed block is also invalid.
+    expect(() => compileTemplate('{{#if bookTitle}}never closed')({})).toThrow();
+  });
 });
 
 describe('Handlebars helpers', () => {
@@ -175,7 +180,21 @@ describe('Handlebars helpers', () => {
         expect(helpers.dateFormat(731876693.002279, 'dddd, MMMM D, YYYY [at] hh:mm A')).toEqual('Tuesday, March 12, 2024 at 06:04 AM');
       });
 
-      test.todo('timezone/date formatting edge cases');
+      test('Should handle the Apple epoch start and fractional seconds', () => {
+        vi.spyOn(dayjs.tz, 'guess').mockReturnValue('');
+
+        // 0 seconds since the Apple epoch (2001-01-01T00:00:00Z).
+        expect(helpers.dateFormat(0, 'YYYY-MM-DD HH:mm:ss')).toEqual('2001-01-01 00:00:00');
+        // Sub-second values stay within the same second.
+        expect(helpers.dateFormat(0.9, 'YYYY-MM-DD HH:mm:ss')).toEqual('2001-01-01 00:00:00');
+      });
+
+      test('Should roll the date back across a negative timezone offset at the epoch boundary', () => {
+        vi.spyOn(dayjs.tz, 'guess').mockReturnValue('America/New_York');
+
+        // Midnight UTC at the Apple epoch is the previous evening in New York.
+        expect(helpers.dateFormat(0, 'YYYY-MM-DD HH:mm:ss Z')).toEqual('2000-12-31 19:00:00 -05:00');
+      });
     });
   });
 });

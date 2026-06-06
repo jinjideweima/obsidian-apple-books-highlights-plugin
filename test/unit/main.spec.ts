@@ -246,7 +246,19 @@ describe('IBookHighlightsPlugin', () => {
       expect(openMock).toHaveBeenCalled();
     });
 
-    test.todo('Trigger import via keyboard shortcut/command palette');
+    test('Registers the import-all command so it can be triggered from the palette/hotkey', async () => {
+      mockLoadData.mockResolvedValueOnce({ backup: true } as any);
+      importHighlightsMock.mockResolvedValueOnce(aggregatedBooksAndAnnotations);
+      await plugin.onload();
+
+      const command = mockAddCommand.mock.calls.map((call) => call[0]).find((cmd: any) => cmd.id === 'import-all-highlights');
+      expect(command).toBeDefined();
+      expect(command.name).toBeTruthy();
+
+      // Invoking the registered callback is what the command palette / a hotkey does.
+      await command.callback({} as any);
+      expect(importHighlightsMock).toHaveBeenCalled();
+    });
   });
   describe('Import from a specific book command', () => {
     test('Should show book search modal on addImportOneBookCommand', async () => {
@@ -275,7 +287,20 @@ describe('IBookHighlightsPlugin', () => {
       expect(NoticeMock).toHaveBeenCalledWith('[Apple Books Test Mock]:\n导入摘录失败，请打开开发者控制台查看详情（⌥ ⌘ I）', 0);
     });
 
-    test.todo('Trigger import via keyboard shortcut/command palette');
-    test.todo('Settings: UI interaction (changing settings, validation, reset to defaults).');
+    test('Registers the import-single command so it can be triggered from the palette/hotkey', async () => {
+      mockLoadData.mockResolvedValueOnce({} as any);
+      const openMock = vi.fn(function (this: any) {});
+      const { IBookHighlightsPluginSearchModal } = await import('../../src/modals/searchSuggestions');
+      vi.spyOn(IBookHighlightsPluginSearchModal.prototype, 'open').mockImplementation(openMock);
+      await plugin.onload();
+
+      const command = mockAddCommand.mock.calls.map((call) => call[0]).find((cmd: any) => cmd.id === 'import-single-highlights');
+      expect(command).toBeDefined();
+      expect(command.name).toBeTruthy();
+
+      await command.callback({} as any);
+      expect(openMock).toHaveBeenCalled();
+    });
+    // Settings UI interaction (changing settings, validation, reset to defaults) is covered in test/unit/settings/settings.spec.ts.
   });
 });

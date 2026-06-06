@@ -145,7 +145,21 @@ describe('VaultManagement', () => {
       expect(mockApp.vault.create).toHaveBeenCalledWith('2 - Literature Notes 📝/Apple Books/Book Title.md', 'File content');
     });
 
-    test.todo('edge-case filenames (unicode, emoji)');
+    test('Should create book file with unicode and emoji filenames', async () => {
+      const vaultManagement = new VaultManagement(mockApp, mockSettings);
+
+      await vaultManagement.createBookFile('日本語の本 📚 émojis & ñoño', 'File content');
+
+      expect(mockApp.vault.create).toHaveBeenCalledWith('ibooks-highlights/日本語の本 📚 émojis & ñoño.md', 'File content');
+    });
+
+    test('Should resolve file path for unicode and emoji filenames', () => {
+      const vaultManagement = new VaultManagement(mockApp, mockSettings);
+
+      vaultManagement.getFilePath('日本語の本 📚 émojis & ñoño');
+
+      expect(mockApp.vault.getFileByPath).toHaveBeenCalledWith('ibooks-highlights/日本語の本 📚 émojis & ñoño.md');
+    });
   });
 
   describe('modifyBookFile', () => {

@@ -1,7 +1,8 @@
 import * as obsidian from 'obsidian';
-import { describe, expect, test, vi } from 'vitest';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type IBookHighlightsPlugin from '../../../main';
 import { defaultTemplate, defaultPluginSettings, IBookHighlightsSettingTab } from '../../../src/settings';
+import { createMockElement, Setting } from '../../mocks/obsidian';
 
 describe('Default settings', () => {
   test('Should check that default settings are defined', () => {
@@ -55,33 +56,110 @@ describe('Settings tab', () => {
     expect(settingsTab.plugin).toBe(mockPlugin);
   });
 
-  test.skip('Should check that settings tab registers all the expected settings', () => {
+  test('Should check that settings tab registers all the expected settings', () => {
     const mockApp = {} as obsidian.App;
     const mockPlugin = { settings: { ...defaultPluginSettings }, saveSettings: vi.fn() } as unknown as IBookHighlightsPlugin;
     const settingsTab = new IBookHighlightsSettingTab(mockApp, mockPlugin);
+    const mockContainerEl = createMockElement();
+    settingsTab.containerEl = mockContainerEl as unknown as HTMLElement;
 
-    const mockContainerEl = {} as HTMLElement;
+    const spies = [
+      vi.spyOn(settingsTab, 'addHighlightsFolderSetting'),
+      vi.spyOn(settingsTab, 'addImportOnStartSetting'),
+      vi.spyOn(settingsTab, 'addBackupSetting'),
+      vi.spyOn(settingsTab, 'addHighlightsSortingCriterionSetting'),
+      vi.spyOn(settingsTab, 'addTemplateSetting'),
+      vi.spyOn(settingsTab, 'addKeepMeSectionSetting'),
+      vi.spyOn(settingsTab, 'addFilenameTemplateSetting'),
+      vi.spyOn(settingsTab, 'addResetTemplateSetting'),
+      vi.spyOn(settingsTab, 'addCredits'),
+    ];
 
-    const addHighlightsFolderSettingSpy = vi.spyOn(settingsTab, 'addHighlightsFolderSetting');
-    const addImportOnStartSettingSpy = vi.spyOn(settingsTab, 'addImportOnStartSetting');
-    const addBackupSettingSpy = vi.spyOn(settingsTab, 'addBackupSetting');
-    const addHighlightsSortingCriterionSettingSpy = vi.spyOn(settingsTab, 'addHighlightsSortingCriterionSetting');
-    const addTemplateSettingSpy = vi.spyOn(settingsTab, 'addTemplateSetting');
-    const addFilenameTemplateSettingSpy = vi.spyOn(settingsTab, 'addFilenameTemplateSetting');
-    const addResetTemplateSettingSpy = vi.spyOn(settingsTab, 'addResetTemplateSetting');
+    settingsTab.display();
 
-    // Assign the mock containerEl directly before calling display
-    settingsTab.containerEl = mockContainerEl;
-    // Call the display method to trigger the settings registration
-    // settingsTab.display();
+    spies.forEach((spy) => expect(spy).toHaveBeenCalledWith(mockContainerEl));
+  });
+});
 
-    // Check that all the expected settings methods were called
-    expect(addHighlightsFolderSettingSpy).toHaveBeenCalledWith(mockContainerEl);
-    expect(addImportOnStartSettingSpy).toHaveBeenCalledWith(mockContainerEl);
-    expect(addBackupSettingSpy).toHaveBeenCalledWith(mockContainerEl);
-    expect(addHighlightsSortingCriterionSettingSpy).toHaveBeenCalledWith(mockContainerEl);
-    expect(addTemplateSettingSpy).toHaveBeenCalledWith(mockContainerEl);
-    expect(addFilenameTemplateSettingSpy).toHaveBeenCalledWith(mockContainerEl);
-    expect(addResetTemplateSettingSpy).toHaveBeenCalledWith(mockContainerEl);
+describe('Settings tab UI interaction', () => {
+  let settingsTab: IBookHighlightsSettingTab;
+  let mockPlugin: { settings: typeof defaultPluginSettings; saveSettings: ReturnType<typeof vi.fn> };
+  let containerEl: ReturnType<typeof createMockElement>;
+
+  beforeEach(() => {
+    Setting.instances.length = 0;
+    mockPlugin = { settings: { ...defaultPluginSettings }, saveSettings: vi.fn() };
+    settingsTab = new IBookHighlightsSettingTab({} as obsidian.App, mockPlugin as unknown as IBookHighlightsPlugin);
+    containerEl = createMockElement();
+    settingsTab.containerEl = containerEl as unknown as HTMLElement;
+  });
+
+  const lastSetting = () => Setting.instances.at(-1)!;
+
+  test('Changing the highlights folder updates and persists the setting', async () => {
+    settingsTab.addHighlightsFolderSetting(containerEl as unknown as HTMLElement);
+
+    await (lastSetting().components[0] as any).change('99 Sources/Books');
+
+    expect(mockPlugin.settings.highlightsFolder).toBe('99 Sources/Books');
+    expect(mockPlugin.saveSettings).toHaveBeenCalled();
+  });
+
+  test('Clearing the highlights folder flags a validation error and does not persist', async () => {
+    settingsTab.addHighlightsFolderSetting(containerEl as unknown as HTMLElement);
+    const setting = lastSetting();
+
+    await (setting.components[0] as any).change('');
+
+    expect(mockPlugin.saveSettings).not.toHaveBeenCalled();
+    expect(setting.controlEl.hasClass('setting-error')).toBe(true);
+  });
+
+  test('Toggling import-on-start persists the new value', async () => {
+    settingsTab.addImportOnStartSetting(containerEl as unknown as HTMLElement);
+
+    await (lastSetting().components[0] as any).change(true);
+
+    expect(mockPlugin.settings.importOnStart).toBe(true);
+    expect(mockPlugin.saveSettings).toHaveBeenCalled();
+  });
+
+  test('Selecting a sorting criterion persists the new value', async () => {
+    settingsTab.addHighlightsSortingCriterionSetting(containerEl as unknown as HTMLElement);
+
+    await (lastSetting().components[0] as any).change('book');
+
+    expect(mockPlugin.settings.highlightsSortingCriterion).toBe('book');
+    expect(mockPlugin.saveSettings).toHaveBeenCalled();
+  });
+
+  test('Emptying the template field falls back to the default template', async () => {
+    mockPlugin.settings.template = 'a custom template';
+    settingsTab.addTemplateSetting(containerEl as unknown as HTMLElement);
+
+    await (lastSetting().components[0] as any).change('');
+
+    expect(mockPlugin.settings.template).toBe(defaultTemplate);
+  });
+
+  test('Emptying the filename template falls back to the default filename template', async () => {
+    mockPlugin.settings.filenameTemplate = '{{{bookTitle}}} - {{{bookAuthor}}}';
+    settingsTab.addFilenameTemplateSetting(containerEl as unknown as HTMLElement);
+
+    await (lastSetting().components[0] as any).change('');
+
+    expect(mockPlugin.settings.filenameTemplate).toBe(defaultPluginSettings.filenameTemplate);
+  });
+
+  test('Reset template button restores the default template and re-renders', async () => {
+    mockPlugin.settings.template = 'a custom template';
+    const displaySpy = vi.spyOn(settingsTab, 'display').mockImplementation(() => {});
+    settingsTab.addResetTemplateSetting(containerEl as unknown as HTMLElement);
+
+    await lastSetting().buttons()[0].click();
+
+    expect(mockPlugin.settings.template).toBe(defaultTemplate);
+    expect(mockPlugin.saveSettings).toHaveBeenCalled();
+    expect(displaySpy).toHaveBeenCalled();
   });
 });
