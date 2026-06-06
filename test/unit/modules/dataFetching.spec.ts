@@ -93,10 +93,10 @@ describe('dataFetching', () => {
       await expect(dataFetching.getBooks()).rejects.toThrow('No books found. Looks like your Apple Books library is empty.');
     });
 
-    test('Should return an array of purchased books', async () => {
+    test('Should return all books including sideloaded ones', async () => {
       const fetchedBooks = await dataFetching.getBooks();
 
-      expect(fetchedBooks).toHaveLength(5);
+      expect(fetchedBooks).toHaveLength(6);
       expect(fetchedBooks).toEqual(purchasedBooks);
     });
   });

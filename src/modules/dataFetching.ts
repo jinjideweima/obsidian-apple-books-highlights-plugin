@@ -53,7 +53,7 @@ export const getBooks = async (): Promise<IBook[]> => {
   ZCOVERURL as bookCoverUrl,
   ${bookPathSelect}
   FROM ZBKLIBRARYASSET
-  WHERE ZPURCHASEDATE IS NOT NULL`;
+  WHERE ZTITLE IS NOT NULL`;
 
   const books = await dbRequest(BOOKS_DB_PATH, dbQuery);
 

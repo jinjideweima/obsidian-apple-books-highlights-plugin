@@ -33,6 +33,17 @@
     "bookPath": ""
   },
   {
+    "bookId": "THBFYNJKTGFTTVCGSAE4",
+    "bookTitle": "Non-Purchased Book",
+    "bookAuthor": "John Doe",
+    "bookGenre": "Fiction",
+    "bookLanguage": "EN",
+    "bookLastOpenedDate": 726602576.413094,
+    "bookFinishedDate": 726602576.413094,
+    "bookCoverUrl": "",
+    "bookPath": ""
+  },
+  {
     "bookId": "THBFYNJKTGFTTVCGSAE5",
     "bookTitle": "A book with no annotations",
     "bookAuthor": "Jane Doe",
