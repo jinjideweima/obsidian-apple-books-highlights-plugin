@@ -36,6 +36,7 @@ interface ToolbarState {
 
 // Rendering preferences toggled from the toolbar (not filters — they only affect how each card looks).
 interface RenderOptions {
+  showAppleNote: boolean;
   showLocalNote: boolean;
   maxChars: number;
 }
@@ -374,6 +375,12 @@ const renderToolbar = (
   });
   unreviewedToggle.querySelector<HTMLInputElement>('input')!.checked = state.onlyUnreviewed;
 
+  const showAppleToggle = createToggle(togglesGroup, '显示想法', (enabled) => {
+    renderOptions.showAppleNote = enabled;
+    runFilter();
+  });
+  showAppleToggle.querySelector<HTMLInputElement>('input')!.checked = renderOptions.showAppleNote;
+
   const showNoteToggle = createToggle(togglesGroup, '显示笔记', (enabled) => {
     renderOptions.showLocalNote = enabled;
     runFilter();
@@ -513,7 +520,7 @@ const renderCard = (app: App, board: HTMLElement, card: IHighlightCard, context:
   const highlightEl = cardEl.createDiv({ cls: 'abkc-card-highlight' });
   renderInlineHighlight(highlightEl, truncate(card.highlight, options.maxChars));
 
-  if (card.appleNote) {
+  if (options.showAppleNote && card.appleNote) {
     const note = cardEl.createDiv({ cls: 'abkc-card-note' });
     note.createDiv({ text: '想法', cls: 'abkc-card-label' });
     note.createDiv({ text: truncate(card.appleNote, options.maxChars) });
@@ -585,7 +592,7 @@ export const renderCardsBoard = (
 
   const toolbarHost = container.createDiv();
   const board = container.createDiv({ cls: 'abkc-board' });
-  const renderOptions: RenderOptions = { showLocalNote: false, maxChars: DEFAULT_MAX_CHARS };
+  const renderOptions: RenderOptions = { showAppleNote: true, showLocalNote: false, maxChars: DEFAULT_MAX_CHARS };
   const render = (filteredCards: IHighlightCard[], scrollToLast = false) => {
     board.empty();
     countEl.setText(`${filteredCards.length} 张卡片`);

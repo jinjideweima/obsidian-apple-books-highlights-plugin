@@ -256,11 +256,17 @@
   grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
 }
 
-.abkc-toolbar-toggles-group,
-.abkc-toolbar-actions-group {
-  flex: 1 1 240px;
+/* Toggles + char-limit sit together on their own row, packed to the left. */
+.abkc-toolbar-toggles-group {
+  flex: 1 1 100%;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: flex-start;
+}
+
+/* Action buttons get their own full-width row and share it evenly. */
+.abkc-toolbar-actions-group {
+  flex: 1 1 100%;
+  flex-wrap: wrap;
 }
 
 .abkc-search {
@@ -293,8 +299,9 @@
   white-space: nowrap;
 }
 
-.abkc-toggle {
-  flex: 1 1 auto;
+.abkc-toggle,
+.abkc-char-limit {
+  flex: 0 0 auto;
 }
 
 .abkc-select {
@@ -1114,7 +1121,8 @@
 .abkc-root.abkc-mobile .abkc-search,
 .abkc-root.abkc-mobile .abkc-select,
 .abkc-root.abkc-mobile .abkc-button,
-.abkc-root.abkc-mobile .abkc-toggle {
+.abkc-root.abkc-mobile .abkc-toggle,
+.abkc-root.abkc-mobile .abkc-char-limit {
   box-sizing: border-box;
   max-width: none;
   width: 100%;
@@ -1123,7 +1131,8 @@
 .abkc-root.abkc-mobile .abkc-search,
 .abkc-root.abkc-mobile .abkc-select,
 .abkc-root.abkc-mobile .abkc-button,
-.abkc-root.abkc-mobile .abkc-toggle {
+.abkc-root.abkc-mobile .abkc-toggle,
+.abkc-root.abkc-mobile .abkc-char-limit {
   font-size: 14px;
   height: 42px;
   min-height: 42px;
