@@ -690,7 +690,9 @@
 
 .abkc-dashboard-hero {
   align-items: stretch;
-  background: var(--abkc-dashboard-card);
+  background:
+    radial-gradient(125% 125% at 100% 0%, color-mix(in srgb, var(--interactive-accent) 7%, transparent), transparent 46%),
+    var(--abkc-dashboard-card);
   border: 1px solid var(--abkc-dashboard-hairline);
   border-radius: 28px;
   box-shadow:
@@ -800,9 +802,9 @@
   display: flex;
   flex-direction: column;
   font: inherit;
-  justify-content: center;
-  min-height: 86px;
-  padding: 15px 16px 14px;
+  justify-content: flex-start;
+  min-height: 104px;
+  padding: 16px;
   position: relative;
   text-align: left;
   transition:
@@ -819,6 +821,24 @@
     0 1px 2px rgba(0, 0, 0, 0.03),
     0 16px 34px rgba(0, 0, 0, 0.08);
   transform: translateY(-2px);
+}
+
+.abkc-dashboard-stat-icon {
+  align-items: center;
+  background: color-mix(in srgb, var(--abkc-stat-accent, var(--interactive-accent)) 15%, transparent);
+  border-radius: 11px;
+  color: var(--abkc-stat-accent, var(--interactive-accent));
+  display: flex;
+  flex: 0 0 auto;
+  height: 32px;
+  justify-content: center;
+  margin-bottom: 12px;
+  width: 32px;
+}
+
+.abkc-dashboard-stat-icon svg {
+  height: 18px;
+  width: 18px;
 }
 
 .abkc-dashboard-stat-value {
@@ -1032,8 +1052,8 @@
 }
 
 .abkc-dashboard-root.abkc-mobile .abkc-dashboard-stat {
-  min-height: 72px;
-  padding: 12px;
+  min-height: 92px;
+  padding: 14px;
 }
 
 .abkc-dashboard-root.abkc-mobile .abkc-dashboard-stat-value {

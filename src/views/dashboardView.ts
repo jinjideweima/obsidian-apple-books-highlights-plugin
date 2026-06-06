@@ -1,4 +1,4 @@
-import { type App, ItemView, Platform, WorkspaceLeaf } from 'obsidian';
+import { type App, ItemView, Platform, setIcon, WorkspaceLeaf } from 'obsidian';
 import type IBookHighlightsPlugin from '../../main';
 import type { IBookNoteSummary, IHighlightCard } from '../types';
 import { getBookSummaries, getHighlightCards } from '../modules/highlightRepository';
@@ -101,8 +101,18 @@ const openHighlightsFolder = async (app: App, plugin: IBookHighlightsPlugin): Pr
   await openCardsView(plugin);
 };
 
-const renderStat = (container: HTMLElement, label: string, value: string | number, onClick: () => Promise<void>) => {
+const renderStat = (
+  container: HTMLElement,
+  label: string,
+  value: string | number,
+  icon: string,
+  accent: string,
+  onClick: () => Promise<void>,
+) => {
   const stat = container.createEl('button', { cls: 'abkc-dashboard-stat' });
+  stat.setAttr('style', `--abkc-stat-accent: ${accent}`);
+  const iconEl = stat.createDiv({ cls: 'abkc-dashboard-stat-icon' });
+  setIcon(iconEl, icon);
   stat.createDiv({ text: String(value), cls: 'abkc-dashboard-stat-value' });
   stat.createDiv({ text: label, cls: 'abkc-dashboard-stat-label' });
   stat.addEventListener('click', async () => {
@@ -190,16 +200,16 @@ const renderDashboardContent = async (
     });
 
     const statGrid = hero.createDiv({ cls: 'abkc-dashboard-stats' });
-    renderStat(statGrid, '书籍', stats.bookCount, async () => {
+    renderStat(statGrid, '书籍', stats.bookCount, 'book', '#0a84ff', async () => {
       await openHighlightsFolder(app, plugin);
     });
-    renderStat(statGrid, '摘录', stats.highlightCount, async () => {
+    renderStat(statGrid, '摘录', stats.highlightCount, 'highlighter', '#ff9f0a', async () => {
       await openCardsView(plugin);
     });
-    renderStat(statGrid, '想法', stats.noteCount, async () => {
+    renderStat(statGrid, '想法', stats.noteCount, 'lightbulb', '#30d158', async () => {
       await openCardsView(plugin, { onlyWithAppleNote: true });
     });
-    renderStat(statGrid, '收藏', stats.favoriteCount, async () => {
+    renderStat(statGrid, '收藏', stats.favoriteCount, 'star', '#ff375f', async () => {
       await openCardsView(plugin, { onlyFavorite: true });
     });
 
