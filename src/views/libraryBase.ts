@@ -118,21 +118,137 @@ views:
       - annotation_count
 `;
 
+export const LIBRARY_CARDS_SNIPPET = 'apple-books-library-cards';
+
+// Hardcover-style book covers for the library Base's card view.
+// Targets global .bases-* classes, so it affects all Bases card views.
+export const LIBRARY_CARDS_CSS = `/* Hardcover book cover effect for Obsidian Bases card views */
+.bases-view {
+  --bases-cards-background: transparent;
+  --bases-cards-cover-background: transparent;
+  --bases-cards-shadow: none;
+  --bases-cards-shadow-hover: none;
+}
+
+.bases-cards-group {
+  gap: 20px;
+  padding: 20px;
+}
+
+.bases-cards-label {
+  display: none;
+}
+
+.bases-cards-item {
+  overflow: visible;
+  gap: 0;
+  contain: inherit;
+}
+
+.bases-cards-property.mod-title {
+  padding-top: 10px;
+}
+
+.bases-cards-cover {
+  transition:
+    transform 0.1s ease-out,
+    box-shadow 0.1s ease-out;
+  border-radius: 2px 6px 6px 2px;
+  box-shadow:
+    inset 1px 1px 0 1px rgba(255, 255, 255, 0.2),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.1),
+    -4px 2px 4px 0 rgba(0, 0, 0, 0.3),
+    -8px 8px 20px 0 rgba(0, 0, 0, 0.2);
+}
+
+.bases-cards-cover::before {
+  content: "";
+  background-image: linear-gradient(
+    to right,
+    rgba(0, 0, 0, 0.2),
+    rgba(255, 255, 255, 0.3) 1%,
+    transparent 6%,
+    rgba(0, 0, 0, 0.15) 8%,
+    rgba(255, 255, 255, 0.2) 9%,
+    transparent 20%
+  );
+  width: 100%;
+  position: absolute;
+  height: 100%;
+}
+
+.bases-cards-item:hover .bases-cards-cover {
+  transform: translateY(-4px) scale(1.03);
+  box-shadow:
+    inset 1px 1px 0 1px rgba(255, 255, 255, 0.2),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.1),
+    -4px 4px 8px 0 rgba(0, 0, 0, 0.3),
+    -12px 16px 30px 0 rgba(0, 0, 0, 0.3);
+}
+
+.bases-cards-property.mod-title .bases-cards-line {
+  font-size: var(--font-ui-small);
+  line-height: 1.2;
+  height: 2.8em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+`;
+
 const notify = (message: string): void => {
   const notice = new Notice(message);
   void notice;
 };
 
-export const createLibraryView = async (plugin: IBookHighlightsPlugin): Promise<void> => {
-  const existing = plugin.app.vault.getFileByPath(LIBRARY_VIEW_FILENAME);
+// Write the hardcover-cover CSS snippet and best-effort enable it (no public API for enabling).
+const installLibraryCardsSnippet = async (plugin: IBookHighlightsPlugin): Promise<boolean> => {
+  const adapter = plugin.app.vault.adapter;
+  const snippetsDir = `${plugin.app.vault.configDir}/snippets`;
 
-  if (existing) {
-    notify(`图书馆视图已存在：${LIBRARY_VIEW_FILENAME}`);
-    await plugin.app.workspace.openLinkText(LIBRARY_VIEW_FILENAME, '', false);
-    return;
+  if (!(await adapter.exists(snippetsDir))) {
+    await adapter.mkdir(snippetsDir);
   }
 
-  await plugin.app.vault.create(LIBRARY_VIEW_FILENAME, LIBRARY_BASE_CONTENT);
-  notify(`已创建图书馆视图：${LIBRARY_VIEW_FILENAME}`);
+  await adapter.write(`${snippetsDir}/${LIBRARY_CARDS_SNIPPET}.css`, LIBRARY_CARDS_CSS);
+
+  const customCss = (
+    plugin.app as unknown as {
+      customCss?: { requestLoadSnippets?: () => void; setCssEnabledStatus?: (name: string, enabled: boolean) => void };
+    }
+  ).customCss;
+
+  if (customCss?.setCssEnabledStatus) {
+    customCss.requestLoadSnippets?.();
+    customCss.setCssEnabledStatus(LIBRARY_CARDS_SNIPPET, true);
+    return true;
+  }
+
+  return false;
+};
+
+export const createLibraryView = async (plugin: IBookHighlightsPlugin): Promise<void> => {
+  const existed = Boolean(plugin.app.vault.getFileByPath(LIBRARY_VIEW_FILENAME));
+
+  if (!existed) {
+    await plugin.app.vault.create(LIBRARY_VIEW_FILENAME, LIBRARY_BASE_CONTENT);
+  }
+
+  let cssEnabled = false;
+  try {
+    cssEnabled = await installLibraryCardsSnippet(plugin);
+  } catch (error) {
+    console.warn('Apple Books Knowledge Cards: 无法安装图书馆封面样式', error);
+  }
+
   await plugin.app.workspace.openLinkText(LIBRARY_VIEW_FILENAME, '', false);
+
+  if (cssEnabled) {
+    notify(existed ? '图书馆视图已就绪，精装封面样式已启用。' : '已创建图书馆视图，精装封面样式已启用。');
+  } else {
+    notify('图书馆视图已就绪。请在「设置 → 外观 → CSS 片段」中启用 apple-books-library-cards 以获得精装封面效果。');
+  }
 };
