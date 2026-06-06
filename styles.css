@@ -676,29 +676,31 @@
   --abkc-dashboard-hairline: color-mix(in srgb, var(--text-muted) 8%, transparent);
   --abkc-dashboard-surface: color-mix(in srgb, var(--background-primary) 97%, var(--background-secondary));
   --abkc-dashboard-soft: color-mix(in srgb, var(--background-primary) 92%, var(--background-secondary));
+  /* Apple Settings–style layering: a soft canvas with clean cards floating on top. */
+  --abkc-dashboard-canvas: color-mix(in srgb, var(--background-secondary) 55%, var(--background-primary));
+  --abkc-dashboard-card: var(--background-primary);
+  background: var(--abkc-dashboard-canvas);
   box-sizing: border-box;
   color: var(--text-normal);
   container-type: inline-size;
   min-height: 100%;
   overflow: auto;
-  padding: 30px;
+  padding: 32px;
 }
 
 .abkc-dashboard-hero {
   align-items: stretch;
-  background:
-    radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--interactive-accent) 5%, transparent), transparent 40%),
-    linear-gradient(180deg, color-mix(in srgb, var(--background-primary) 99%, transparent), var(--abkc-dashboard-surface));
-  border: 1px solid var(--abkc-dashboard-border);
-  border-radius: 30px;
+  background: var(--abkc-dashboard-card);
+  border: 1px solid var(--abkc-dashboard-hairline);
+  border-radius: 28px;
   box-shadow:
-    0 1px 1px rgba(0, 0, 0, 0.018),
-    0 24px 56px rgba(0, 0, 0, 0.05);
+    0 1px 2px rgba(0, 0, 0, 0.03),
+    0 20px 48px rgba(0, 0, 0, 0.06);
   display: grid;
-  gap: 36px;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.88fr);
-  margin-bottom: 24px;
-  padding: 34px;
+  gap: 40px;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.86fr);
+  margin-bottom: 22px;
+  padding: 38px;
 }
 
 .abkc-dashboard-intro {
@@ -715,11 +717,11 @@
 }
 
 .abkc-dashboard-hero h1 {
-  font-size: clamp(34px, 5.4cqi, 56px);
+  font-size: clamp(40px, 6.2cqi, 64px);
   font-weight: 700;
-  letter-spacing: -0.022em;
-  line-height: 1.05;
-  margin: 12px 0 14px;
+  letter-spacing: -0.025em;
+  line-height: 1.04;
+  margin: 14px 0 16px;
 }
 
 .abkc-dashboard-hero p {
@@ -788,12 +790,10 @@
   align-items: flex-start;
   appearance: none;
   -webkit-appearance: none;
-  background: color-mix(in srgb, var(--background-primary) 86%, transparent);
-  border: 1px solid var(--abkc-dashboard-border);
-  border-radius: 20px;
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.4) inset,
-    0 10px 28px rgba(0, 0, 0, 0.04);
+  background: var(--abkc-dashboard-soft);
+  border: 1px solid var(--abkc-dashboard-hairline);
+  border-radius: 18px;
+  box-shadow: none;
   box-sizing: border-box;
   color: var(--text-normal);
   cursor: pointer;
@@ -814,12 +814,11 @@
 }
 
 .abkc-dashboard-stat:hover {
-  background: color-mix(in srgb, var(--interactive-accent) 7%, var(--background-primary));
-  border-color: color-mix(in srgb, var(--interactive-accent) 24%, var(--abkc-dashboard-border));
+  border-color: color-mix(in srgb, var(--text-muted) 18%, transparent);
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.42) inset,
-    0 12px 24px rgba(0, 0, 0, 0.06);
-  transform: translateY(-1px);
+    0 1px 2px rgba(0, 0, 0, 0.03),
+    0 16px 34px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
 }
 
 .abkc-dashboard-stat-value {
@@ -852,14 +851,16 @@
 .abkc-dashboard-grid {
   display: grid;
   gap: 18px;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.78fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .abkc-dashboard-section {
-  background: var(--abkc-dashboard-surface);
-  border: 1px solid var(--abkc-dashboard-border);
+  background: var(--abkc-dashboard-card);
+  border: 1px solid var(--abkc-dashboard-hairline);
   border-radius: 24px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.04);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.03),
+    0 16px 40px rgba(0, 0, 0, 0.05);
   min-width: 0;
   padding: 22px;
 }
@@ -923,9 +924,9 @@
 .abkc-dashboard-root button.abkc-dashboard-highlight {
   appearance: none;
   -webkit-appearance: none;
-  background: color-mix(in srgb, var(--background-primary) 74%, transparent);
-  border: 1px solid var(--abkc-dashboard-border);
-  border-radius: 20px;
+  background: var(--abkc-dashboard-soft);
+  border: 1px solid var(--abkc-dashboard-hairline);
+  border-radius: 16px;
   box-sizing: border-box;
   color: var(--text-normal);
   cursor: pointer;
@@ -974,11 +975,11 @@
 
 .abkc-dashboard-cover-fallback {
   align-items: center;
-  background: color-mix(in srgb, var(--interactive-accent) 18%, var(--background-secondary));
+  background: color-mix(in srgb, var(--background-secondary) 78%, var(--text-muted));
   color: var(--text-muted);
   display: flex;
   font-size: 22px;
-  font-weight: 800;
+  font-weight: 700;
   justify-content: center;
 }
 
