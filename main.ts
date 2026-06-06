@@ -8,6 +8,7 @@ import { showFailedImportNotice, showErrorInConsole } from './src/utils/notifica
 import { cleanupCardRenderer, renderCardsBoard } from './src/views/cardRenderer';
 import { CARDS_VIEW_TYPE, CardsView, openCardsView } from './src/views/cardsView';
 import { DASHBOARD_VIEW_TYPE, DashboardView, openDashboardView, renderDashboard } from './src/views/dashboardView';
+import { createLibraryView } from './src/views/libraryBase';
 
 const showNotice = (message: string, timeout?: number): void => {
   const notice = new Notice(message, timeout);
@@ -31,6 +32,7 @@ export default class IBookHighlightsPlugin extends Plugin {
     addDashboardRibbonAction(this);
     addOpenDashboardCommand(this);
     addOpenCardsWallCommand(this);
+    addCreateLibraryViewCommand(this);
     registerCardsView(this);
     registerDashboardView(this);
     registerCardsCodeBlock(this);
@@ -143,6 +145,21 @@ function addOpenDashboardCommand(plugin: IBookHighlightsPlugin) {
     name: '打开 Apple Books 阅读仪表盘',
     callback: async () => {
       await openDashboardView(plugin);
+    },
+  });
+}
+
+function addCreateLibraryViewCommand(plugin: IBookHighlightsPlugin) {
+  plugin.addCommand({
+    id: 'create-library-view',
+    name: '创建 Apple Books 图书馆视图（Base）',
+    callback: async () => {
+      try {
+        await createLibraryView(plugin);
+      } catch (error) {
+        showFailedImportNotice(plugin.manifest.name);
+        showErrorInConsole(plugin.manifest.name, error);
+      }
     },
   });
 }
