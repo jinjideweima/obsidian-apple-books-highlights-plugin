@@ -388,11 +388,7 @@ const shouldResolveParagraphContext = (annotation: IAnnotation): boolean => {
   return Boolean(highlight) && (!contextualText || contextualText === highlight);
 };
 
-const findParagraphContext = async (
-  context: BookEpubContext,
-  annotation: IAnnotation,
-  htmlCache: Map<string, string>,
-): Promise<string> => {
+const findParagraphContext = async (context: BookEpubContext, annotation: IAnnotation, htmlCache: Map<string, string>): Promise<string> => {
   const href = getChapterHrefFromCfi(annotation.highlightLocation, context.spineHrefs);
 
   if (!href) {

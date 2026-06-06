@@ -66,11 +66,7 @@ vi.mock('../../../src/utils/nodeModules', () => ({
     }
     if (moduleName === 'path') {
       return {
-        join: (...parts: string[]) =>
-          parts
-            .filter(Boolean)
-            .join('/')
-            .replace(/\/+/g, '/'),
+        join: (...parts: string[]) => parts.filter(Boolean).join('/').replace(/\/+/g, '/'),
       };
     }
   },
@@ -118,10 +114,10 @@ describe('inferMissingChapters', () => {
         ],
         [`${EPUB_ROOT}/META-INF`]: [{ name: 'container.xml', isDirectory: () => false }],
         [`${EPUB_ROOT}/OEBPS`]: [
-          { name: 'content.opf',   isDirectory: () => false },
-          { name: 'toc.ncx',       isDirectory: () => false },
-          { name: 'chapter1.xhtml',isDirectory: () => false },
-          { name: 'chapter2.xhtml',isDirectory: () => false },
+          { name: 'content.opf', isDirectory: () => false },
+          { name: 'toc.ncx', isDirectory: () => false },
+          { name: 'chapter1.xhtml', isDirectory: () => false },
+          { name: 'chapter2.xhtml', isDirectory: () => false },
         ],
       };
       return map[dirPath] ?? [];
@@ -143,8 +139,13 @@ describe('inferMissingChapters', () => {
     const book = makeBook({
       bookPath: undefined,
       annotations: [
-        { ...baseAnnotation, chapter: '', contextualText: '', highlight: '第一段内容',
-          highlightLocation: 'epubcfi(/6/2[chapter1]!/4/2/1:0)' },
+        {
+          ...baseAnnotation,
+          chapter: '',
+          contextualText: '',
+          highlight: '第一段内容',
+          highlightLocation: 'epubcfi(/6/2[chapter1]!/4/2/1:0)',
+        },
       ],
     });
 
@@ -160,10 +161,21 @@ describe('inferMissingChapters', () => {
   test('should infer missing chapters from EPUB TOC', async () => {
     const book = makeBook({
       annotations: [
-        { ...baseAnnotation, chapter: '', contextualText: '不同的上下文', highlight: '第一段',
-          highlightLocation: 'epubcfi(/6/2[chapter1]!/4/2/1:0)' },
-        { ...baseAnnotation, assetId: 'a2', chapter: '', contextualText: '不同的上下文', highlight: '第二章',
-          highlightLocation: 'epubcfi(/6/4[chapter2]!/4/2/1:0)' },
+        {
+          ...baseAnnotation,
+          chapter: '',
+          contextualText: '不同的上下文',
+          highlight: '第一段',
+          highlightLocation: 'epubcfi(/6/2[chapter1]!/4/2/1:0)',
+        },
+        {
+          ...baseAnnotation,
+          assetId: 'a2',
+          chapter: '',
+          contextualText: '不同的上下文',
+          highlight: '第二章',
+          highlightLocation: 'epubcfi(/6/4[chapter2]!/4/2/1:0)',
+        },
       ],
     });
 
@@ -176,8 +188,13 @@ describe('inferMissingChapters', () => {
   test('should not overwrite an annotation that already has a chapter', async () => {
     const book = makeBook({
       annotations: [
-        { ...baseAnnotation, chapter: '已有章节', contextualText: '不同的上下文', highlight: '摘录',
-          highlightLocation: 'epubcfi(/6/2[chapter1]!/4/2/1:0)' },
+        {
+          ...baseAnnotation,
+          chapter: '已有章节',
+          contextualText: '不同的上下文',
+          highlight: '摘录',
+          highlightLocation: 'epubcfi(/6/2[chapter1]!/4/2/1:0)',
+        },
       ],
     });
 
@@ -189,8 +206,13 @@ describe('inferMissingChapters', () => {
   test('should not read the TOC when all annotations already have chapters', async () => {
     const book = makeBook({
       annotations: [
-        { ...baseAnnotation, chapter: '已有章节', contextualText: '不同的上下文', highlight: '摘录',
-          highlightLocation: 'epubcfi(/6/2[chapter1]!/4/2/1:0)' },
+        {
+          ...baseAnnotation,
+          chapter: '已有章节',
+          contextualText: '不同的上下文',
+          highlight: '摘录',
+          highlightLocation: 'epubcfi(/6/2[chapter1]!/4/2/1:0)',
+        },
       ],
     });
 
@@ -205,8 +227,13 @@ describe('inferMissingChapters', () => {
   test('should infer paragraph context when contextualText is empty', async () => {
     const book = makeBook({
       annotations: [
-        { ...baseAnnotation, chapter: '第一章', contextualText: '', highlight: '第一段内容',
-          highlightLocation: 'epubcfi(/6/2[chapter1]!/4/2/1:0)' },
+        {
+          ...baseAnnotation,
+          chapter: '第一章',
+          contextualText: '',
+          highlight: '第一段内容',
+          highlightLocation: 'epubcfi(/6/2[chapter1]!/4/2/1:0)',
+        },
       ],
     });
 
@@ -221,8 +248,13 @@ describe('inferMissingChapters', () => {
     const highlight = '第一段内容';
     const book = makeBook({
       annotations: [
-        { ...baseAnnotation, chapter: '第一章', contextualText: highlight, highlight,
-          highlightLocation: 'epubcfi(/6/2[chapter1]!/4/2/1:0)' },
+        {
+          ...baseAnnotation,
+          chapter: '第一章',
+          contextualText: highlight,
+          highlight,
+          highlightLocation: 'epubcfi(/6/2[chapter1]!/4/2/1:0)',
+        },
       ],
     });
 
@@ -235,9 +267,13 @@ describe('inferMissingChapters', () => {
   test('should not overwrite contextualText that already differs from highlight', async () => {
     const book = makeBook({
       annotations: [
-        { ...baseAnnotation, chapter: '第一章', contextualText: '已有的完整上下文，和摘录内容不同。',
+        {
+          ...baseAnnotation,
+          chapter: '第一章',
+          contextualText: '已有的完整上下文，和摘录内容不同。',
           highlight: '第一段内容',
-          highlightLocation: 'epubcfi(/6/2[chapter1]!/4/2/1:0)' },
+          highlightLocation: 'epubcfi(/6/2[chapter1]!/4/2/1:0)',
+        },
       ],
     });
 
@@ -252,18 +288,28 @@ describe('inferMissingChapters', () => {
     // Two annotations in chapter1, both missing contextualText
     const book = makeBook({
       annotations: [
-        { ...baseAnnotation, assetId: 'a1', chapter: '第一章', contextualText: '', highlight: '第一段内容',
-          highlightLocation: 'epubcfi(/6/2[chapter1]!/4/2/1:0)' },
-        { ...baseAnnotation, assetId: 'a2', chapter: '第一章', contextualText: '', highlight: '第二段内容',
-          highlightLocation: 'epubcfi(/6/2[chapter1]!/4/2/2:0)' },
+        {
+          ...baseAnnotation,
+          assetId: 'a1',
+          chapter: '第一章',
+          contextualText: '',
+          highlight: '第一段内容',
+          highlightLocation: 'epubcfi(/6/2[chapter1]!/4/2/1:0)',
+        },
+        {
+          ...baseAnnotation,
+          assetId: 'a2',
+          chapter: '第一章',
+          contextualText: '',
+          highlight: '第二段内容',
+          highlightLocation: 'epubcfi(/6/2[chapter1]!/4/2/2:0)',
+        },
       ],
     });
 
     await inferMissingChapters([book]);
 
-    const chapter1Reads = mockReadFile.mock.calls.filter(([p]: [string]) =>
-      (p as string).includes('chapter1.xhtml'),
-    ).length;
+    const chapter1Reads = mockReadFile.mock.calls.filter(([p]: [string]) => (p as string).includes('chapter1.xhtml')).length;
 
     expect(chapter1Reads).toBe(1);
     // Both annotations should have received their context
@@ -278,8 +324,7 @@ describe('inferMissingChapters', () => {
 
     const book = makeBook({
       annotations: [
-        { ...baseAnnotation, chapter: '', contextualText: '', highlight: '摘录',
-          highlightLocation: 'epubcfi(/6/2[chapter1]!/4/2/1:0)' },
+        { ...baseAnnotation, chapter: '', contextualText: '', highlight: '摘录', highlightLocation: 'epubcfi(/6/2[chapter1]!/4/2/1:0)' },
       ],
     });
 
@@ -291,17 +336,29 @@ describe('inferMissingChapters', () => {
 
   test('should process multiple books and infer chapters for each', async () => {
     const book1 = makeBook({
-      bookId: 'B1', bookTitle: '书一',
+      bookId: 'B1',
+      bookTitle: '书一',
       annotations: [
-        { ...baseAnnotation, chapter: '', contextualText: '不同上下文', highlight: '书一摘录',
-          highlightLocation: 'epubcfi(/6/2[chapter1]!/4/2/1:0)' },
+        {
+          ...baseAnnotation,
+          chapter: '',
+          contextualText: '不同上下文',
+          highlight: '书一摘录',
+          highlightLocation: 'epubcfi(/6/2[chapter1]!/4/2/1:0)',
+        },
       ],
     });
     const book2 = makeBook({
-      bookId: 'B2', bookTitle: '书二',
+      bookId: 'B2',
+      bookTitle: '书二',
       annotations: [
-        { ...baseAnnotation, chapter: '', contextualText: '不同上下文', highlight: '书二摘录',
-          highlightLocation: 'epubcfi(/6/4[chapter2]!/4/2/1:0)' },
+        {
+          ...baseAnnotation,
+          chapter: '',
+          contextualText: '不同上下文',
+          highlight: '书二摘录',
+          highlightLocation: 'epubcfi(/6/4[chapter2]!/4/2/1:0)',
+        },
       ],
     });
 

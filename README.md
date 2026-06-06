@@ -9,6 +9,7 @@
 ## 功能
 
 ### 📥 摘录导入
+
 - 一键导入全部 Apple Books 高亮摘录
 - 支持按单本书籍导入
 - 自动从 EPUB 文件补全章节信息
@@ -17,6 +18,7 @@
 - 每次导入前可备份，防止意外覆盖
 
 ### 🃏 摘录卡片墙
+
 - 以卡片形式浏览全部摘录
 - 支持按书名、作者、章节、颜色筛选
 - 支持全文搜索
@@ -24,13 +26,16 @@
 - 可对摘录标记收藏、编辑本地笔记
 
 ### 📊 阅读仪表盘
+
 - 统计书籍数量、摘录总数、收藏数、想法数
 - 按摘录数量排列最值得回看的书
 - 随机回顾模块，每次打开随机展示几条摘录
 - 最近摘录模块
 
 ### ✏️ 摘录卡片文件
+
 每条摘录生成一个独立的 Markdown 文件，包含：
+
 - 结构化 YAML frontmatter（书名、作者、章节、颜色等）
 - 原始划线内容
 - 段落上下文（自动从 EPUB 补全）
@@ -49,13 +54,16 @@
 ## 使用方式
 
 **导入摘录**
+
 - 点击侧边栏书本图标，或使用命令面板搜索"导入全部"
 - 使用命令面板搜索"导入指定书籍"可按书导入
 
 **打开卡片墙**
+
 - 点击侧边栏仪表盘图标，或命令面板搜索"打开摘录"
 
 **打开阅读仪表盘**
+
 - 命令面板搜索"打开阅读仪表盘"
 
 **在笔记中嵌入卡片墙**
@@ -72,14 +80,14 @@ book_id: 你的书籍ID
 
 ## 设置
 
-| 选项 | 说明 |
-|------|------|
+| 选项       | 说明                                           |
+| ---------- | ---------------------------------------------- |
 | 摘录文件夹 | 摘录文件存放位置，默认 `10 Sources/ibooks-dev` |
-| 启动时导入 | Obsidian 启动时自动同步摘录 |
-| 导入前备份 | 每次导入前备份旧文件 |
-| 排序方式 | 按创建时间、修改时间或书中位置排序 |
-| 内容模板 | 自定义书籍主笔记的 Handlebars 模板 |
-| 文件名模板 | 自定义生成的文件名格式 |
+| 启动时导入 | Obsidian 启动时自动同步摘录                    |
+| 导入前备份 | 每次导入前备份旧文件                           |
+| 排序方式   | 按创建时间、修改时间或书中位置排序             |
+| 内容模板   | 自定义书籍主笔记的 Handlebars 模板             |
+| 文件名模板 | 自定义生成的文件名格式                         |
 
 ## 系统要求
 
@@ -106,6 +114,7 @@ Turn your Apple Books highlights into structured knowledge cards in Obsidian.
 ## Features
 
 ### 📥 Highlight Import
+
 - Import all Apple Books highlights in one click
 - Import highlights from a single book
 - Automatically infer chapter names from EPUB files
@@ -114,6 +123,7 @@ Turn your Apple Books highlights into structured knowledge cards in Obsidian.
 - Optional backup before each import to prevent accidental data loss
 
 ### 🃏 Card Wall
+
 - Browse all highlights as visual cards
 - Filter by book title, author, chapter, or highlight color
 - Full-text search across highlights, notes, and metadata
@@ -121,13 +131,16 @@ Turn your Apple Books highlights into structured knowledge cards in Obsidian.
 - Mark highlights as favorites and add local notes
 
 ### 📊 Reading Dashboard
+
 - Stats overview: book count, total highlights, favorites, and annotated highlights
 - "Most worth revisiting" books sorted by highlight count
 - Random review section — a new set of cards every time you open it
 - Recent highlights section
 
 ### ✏️ Highlight Card Files
+
 Each highlight is saved as an individual Markdown file containing:
+
 - Structured YAML frontmatter (title, author, chapter, color, etc.)
 - The highlighted text
 - Surrounding paragraph context (auto-filled from EPUB)
@@ -146,13 +159,16 @@ Each highlight is saved as an individual Markdown file containing:
 ## Usage
 
 **Import highlights**
+
 - Click the book icon in the sidebar, or use the command palette: "导入全部 Apple Books 摘录"
 - To import a single book, use the command palette: "导入指定书籍..."
 
 **Open card wall**
+
 - Click the dashboard icon in the sidebar, or use the command palette: "打开 Apple Books 摘录"
 
 **Open reading dashboard**
+
 - Command palette: "打开 Apple Books 阅读仪表盘"
 
 **Embed a card wall in a note**
@@ -169,14 +185,14 @@ Omit `book_id` to display all highlights.
 
 ## Settings
 
-| Option | Description |
-|--------|-------------|
-| Highlights folder | Where highlight files are stored. Default: `10 Sources/ibooks-dev` |
-| Import on startup | Automatically sync highlights when Obsidian launches |
-| Backup before import | Back up existing files before each import |
-| Sort order | Sort by creation date, modification date, or position in book |
-| Content template | Customize the book note format using Handlebars |
-| Filename template | Customize how generated filenames are formatted |
+| Option               | Description                                                        |
+| -------------------- | ------------------------------------------------------------------ |
+| Highlights folder    | Where highlight files are stored. Default: `10 Sources/ibooks-dev` |
+| Import on startup    | Automatically sync highlights when Obsidian launches               |
+| Backup before import | Back up existing files before each import                          |
+| Sort order           | Sort by creation date, modification date, or position in book      |
+| Content template     | Customize the book note format using Handlebars                    |
+| Filename template    | Customize how generated filenames are formatted                    |
 
 ## Requirements
 
