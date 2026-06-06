@@ -58,7 +58,7 @@ jobs:
   release-plugin:
     permissions:
       id-token: write
-      contents: read
+      contents: write
       attestations: write
 
     name: 📦 Release Obsidian Plugin
@@ -88,10 +88,15 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG_NAME="${GITHUB_REF#refs/tags/}"
-          gh release create "$TAG_NAME" \
-            --verify-tag \
-            --draft \
-            --title "$TAG_NAME" \
-            --generate-notes \
-            --notes-file .github/release_notes_template.md \
-            ./dist/*
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            echo "Release $TAG_NAME already exists; syncing build assets."
+            gh release upload "$TAG_NAME" ./dist/* --clobber
+          else
+            gh release create "$TAG_NAME" \
+              --verify-tag \
+              --draft \
+              --title "$TAG_NAME" \
+              --generate-notes \
+              --notes-file .github/release_notes_template.md \
+              ./dist/*
+          fi
