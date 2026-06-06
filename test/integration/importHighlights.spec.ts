@@ -3,9 +3,12 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import type { IBookHighlightsPluginSettings } from '../../src/types';
 import { importHighlights } from '../../src/importHighlights';
 import * as annotationProcessing from '../../src/modules/annotationsProcessing';
+import { extractBookCover } from '../../src/modules/epubChapters';
 import { VaultManagement } from '../../src/modules/vaultManagement';
 import { defaultTemplate } from '../../src/settings';
 import aggregatedBooksAndAnnotations from '../fixtures/annotationProcessing/aggregatedBooksAndAnnotations.json' with { type: 'json' };
+
+vi.mock('../../src/modules/epubChapters', () => ({ extractBookCover: vi.fn() }));
 
 describe('importHighlights', () => {
   const mockApp = {
@@ -154,5 +157,33 @@ describe('importHighlights', () => {
 
     expect(createBookFileSpy).not.toHaveBeenCalled();
     expect(modifyBookFileSpy).not.toHaveBeenCalled();
+  });
+
+  test('Should extract the EPUB cover, write it, and reference it in the frontmatter', async () => {
+    const vaultManagement = new VaultManagement(mockApp, mockSettings);
+
+    vi.spyOn(annotationProcessing, 'aggregateBooksWithAnnotations').mockResolvedValue([{ ...aggregatedBooksAndAnnotations[0] }]);
+    vi.mocked(extractBookCover).mockResolvedValue({ data: new Uint8Array([1, 2, 3]), extension: 'jpg' });
+
+    const upsertBinarySpy = vi.spyOn(vaultManagement, 'upsertBinaryFile').mockResolvedValue();
+    const createBookFileSpy = vi.spyOn(vaultManagement, 'createBookFile');
+
+    await importHighlights(vaultManagement, mockSettings);
+
+    expect(upsertBinarySpy).toHaveBeenCalledWith('ibooks-highlights/covers/iPhone User Guide.jpg', expect.any(ArrayBuffer));
+    expect(createBookFileSpy.mock.calls[0][1]).toContain('cover: "[[ibooks-highlights/covers/iPhone User Guide.jpg]]"');
+  });
+
+  test('Should skip cover handling when the book has no extractable cover', async () => {
+    const vaultManagement = new VaultManagement(mockApp, mockSettings);
+
+    vi.spyOn(annotationProcessing, 'aggregateBooksWithAnnotations').mockResolvedValue([{ ...aggregatedBooksAndAnnotations[0] }]);
+    vi.mocked(extractBookCover).mockResolvedValue(null);
+
+    const upsertBinarySpy = vi.spyOn(vaultManagement, 'upsertBinaryFile').mockResolvedValue();
+
+    await importHighlights(vaultManagement, mockSettings);
+
+    expect(upsertBinarySpy).not.toHaveBeenCalled();
   });
 });

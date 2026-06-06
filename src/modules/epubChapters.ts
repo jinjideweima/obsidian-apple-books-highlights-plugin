@@ -8,6 +8,7 @@ interface TocEntry {
 
 interface EpubFileReader {
   readText: (relativePath: string) => Promise<string>;
+  readBinary: (relativePath: string) => Promise<Uint8Array>;
   listFiles: () => Promise<string[]>;
 }
 
@@ -103,6 +104,7 @@ const createDirectoryReader = async (rootPath: string): Promise<EpubFileReader> 
 
   return {
     readText: async (relativePath: string) => fs.readFile(path.join(rootPath, relativePath), 'utf8'),
+    readBinary: async (relativePath: string) => fs.readFile(path.join(rootPath, relativePath)),
     listFiles: async () => listFiles(rootPath),
   };
 };
@@ -146,6 +148,15 @@ const createZipReader = async (rootPath: string): Promise<EpubFileReader> => {
       }
 
       return textDecoder.decode(content);
+    },
+    readBinary: async (relativePath: string) => {
+      const content = entries.get(relativePath);
+
+      if (!content) {
+        throw new Error(`找不到 EPUB 文件：${relativePath}`);
+      }
+
+      return content;
     },
     listFiles: async () => Array.from(entries.keys()),
   };
@@ -201,6 +212,50 @@ const getManifestItems = (opf: string): Map<string, string> => {
   }
 
   return items;
+};
+
+const findCoverImageHref = (opf: string): string => {
+  // EPUB 2 style: <meta name="cover" content="cover-image-id"/>
+  const coverMetaTag = opf.match(/<meta\b[^>]*\bname\s*=\s*["']cover["'][^>]*>/i)?.[0] || '';
+  const coverIdFromMeta = coverMetaTag ? getAttr(coverMetaTag, 'content') : '';
+
+  let epub3Href = '';
+  let metaHref = '';
+  let fallbackHref = '';
+
+  const itemRegex = /<item\b[^>]*>/gi;
+  let itemMatch: RegExpExecArray | null;
+
+  while ((itemMatch = itemRegex.exec(opf))) {
+    const tag = itemMatch[0];
+    const href = getAttr(tag, 'href');
+
+    if (!href) {
+      continue;
+    }
+
+    const id = getAttr(tag, 'id');
+    const mediaType = getAttr(tag, 'media-type');
+    const properties = getAttr(tag, 'properties');
+
+    // EPUB 3 style: the manifest item carries properties="cover-image" (highest priority).
+    if (/\bcover-image\b/i.test(properties)) {
+      epub3Href = href;
+      break;
+    }
+
+    // EPUB 2 style: the manifest item whose id matches the cover meta.
+    if (coverIdFromMeta && id === coverIdFromMeta) {
+      metaHref = href;
+    }
+
+    // Fallback: any image whose id or href hints at being a cover.
+    if (!fallbackHref && /^image\//i.test(mediaType) && /cover/i.test(`${id} ${href}`)) {
+      fallbackHref = href;
+    }
+  }
+
+  return epub3Href || metaHref || fallbackHref || '';
 };
 
 const getSpineHrefs = (opf: string, manifestItems: Map<string, string>, opfDir: string): string[] => {
@@ -457,4 +512,29 @@ export const inferMissingChapters = async (books: IBookWithAnnotations[]): Promi
       }
     }),
   );
+};
+
+export const extractBookCover = async (book: IBookWithAnnotations): Promise<{ data: Uint8Array; extension: string } | null> => {
+  try {
+    const context = await getBookEpubContext(book);
+
+    if (!context) {
+      return null;
+    }
+
+    const coverHref = findCoverImageHref(context.opf);
+
+    if (!coverHref) {
+      return null;
+    }
+
+    const coverPath = normalizePath(joinPath(context.opfDir, coverHref));
+    const data = await context.reader.readBinary(coverPath);
+    const extension = (coverHref.split('.').pop() || '').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+
+    return { data, extension };
+  } catch (error) {
+    console.warn(`Apple Books Knowledge Cards: 无法提取封面：${book.bookTitle}`, error);
+    return null;
+  }
 };

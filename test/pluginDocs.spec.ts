@@ -32,7 +32,12 @@ describe('Plugin documentation', () => {
       highlightModificationDate: 1234567890,
     } as IAnnotation;
 
-    const allAllowedVariables = { ...allowedBookVariables, annotations: [allowedAnnotationVariables], ...allowedAnnotationVariables };
+    const allAllowedVariables = {
+      ...allowedBookVariables,
+      coverImagePath: 'string', // Runtime field set during import (cover extracted from the EPUB)
+      annotations: [allowedAnnotationVariables],
+      ...allowedAnnotationVariables,
+    };
 
     const customizationDocPath = path.join(process.cwd(), 'docs', 'customization', 'templates-and-variables.md');
     const customizationDocContent = await fs.readFile(customizationDocPath, 'utf-8');

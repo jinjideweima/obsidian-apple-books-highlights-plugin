@@ -68,6 +68,8 @@ theme: receipt
 ```
 ibooks-highlights/
   ├── 书籍标题.md              ← 书籍主笔记
+  ├── covers/
+  │   └── 书籍标题.jpg         ← 从 EPUB 自动提取的封面
   └── cards/
       └── 书籍标题/
           ├── ibooks-XXXX-XXXX.md  ← 摘录卡片（按稳定 ID 命名）
@@ -77,3 +79,4 @@ ibooks-highlights/
 - 每条摘录卡片包含 YAML frontmatter（书名、作者、颜色、收藏状态等）和结构化的划线/上下文/想法/笔记/来源各节
 - 卡片文件名基于 `annotationId`（由 bookId + highlightLocation 哈希生成），重导入不会打乱顺序
 - 收藏状态、个人笔记在重导入时自动保留
+- 若书籍是可提取的 EPUB（无 DRM），封面会自动存入 `covers/` 并写入主笔记 frontmatter，阅读仪表盘可直接显示

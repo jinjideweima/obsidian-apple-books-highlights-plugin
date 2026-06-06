@@ -74,6 +74,17 @@ export class VaultManagement {
     await this.vault.create(filePath, content);
   }
 
+  async upsertBinaryFile(filePath: string, data: ArrayBuffer): Promise<void> {
+    const existingFile = this.vault.getFileByPath(filePath);
+
+    if (existingFile) {
+      await this.vault.modifyBinary(existingFile, data);
+      return;
+    }
+
+    await this.vault.createBinary(filePath, data);
+  }
+
   async readFileIfExists(filePath: string): Promise<string> {
     const existingFile = this.vault.getFileByPath(filePath);
 

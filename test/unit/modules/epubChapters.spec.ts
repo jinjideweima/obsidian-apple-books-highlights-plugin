@@ -1,6 +1,6 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import type { IBookWithAnnotations } from '../../../src/types';
-import { inferMissingChapters } from '../../../src/modules/epubChapters';
+import { extractBookCover, inferMissingChapters } from '../../../src/modules/epubChapters';
 
 // ─── EPUB fixtures ─────────────────────────────────────────────────────────────
 
@@ -366,5 +366,118 @@ describe('inferMissingChapters', () => {
 
     expect(book1.annotations[0].chapter).toBe('第一章');
     expect(book2.annotations[0].chapter).toBe('第二章');
+  });
+});
+
+describe('extractBookCover', () => {
+  const COVER_EPUB_ROOT = '/books/cover-book';
+
+  const setupEpub = (opf: string, assets: Record<string, string> = {}): void => {
+    const files: Record<string, string> = {
+      'META-INF/container.xml': `<container><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>`,
+      'OEBPS/content.opf': opf,
+      ...assets,
+    };
+
+    mockStat.mockResolvedValue({ isDirectory: () => true });
+    mockReadFile.mockImplementation(async (filePath: string, encoding?: string) => {
+      const relativePath = filePath.replace(`${COVER_EPUB_ROOT}/`, '');
+      const content = files[relativePath];
+
+      if (content === undefined) {
+        throw new Error(`Mock fs: 找不到文件 "${filePath}"`);
+      }
+
+      // readText passes 'utf8' and expects a string; readBinary passes nothing and expects a Buffer.
+      return encoding ? content : Buffer.from(content);
+    });
+  };
+
+  const coverBook = () => makeBook({ bookPath: COVER_EPUB_ROOT });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  test('extracts the cover declared with properties="cover-image" (EPUB 3)', async () => {
+    setupEpub(
+      `<package><manifest>
+        <item id="cover-img" href="images/cover.jpg" media-type="image/jpeg" properties="cover-image"/>
+        <item id="c1" href="c1.xhtml" media-type="application/xhtml+xml"/>
+      </manifest><spine><itemref idref="c1"/></spine></package>`,
+      { 'OEBPS/images/cover.jpg': 'JPEG-COVER-DATA' },
+    );
+
+    const result = await extractBookCover(coverBook());
+
+    expect(result).not.toBeNull();
+    expect(result!.extension).toBe('jpg');
+    expect(Buffer.from(result!.data).toString()).toBe('JPEG-COVER-DATA');
+  });
+
+  test('extracts the cover referenced by <meta name="cover"> (EPUB 2)', async () => {
+    setupEpub(
+      `<package><metadata>
+        <meta name="cover" content="cover-id"/>
+      </metadata><manifest>
+        <item id="cover-id" href="cover.png" media-type="image/png"/>
+        <item id="c1" href="c1.xhtml" media-type="application/xhtml+xml"/>
+      </manifest><spine><itemref idref="c1"/></spine></package>`,
+      { 'OEBPS/cover.png': 'PNG-COVER' },
+    );
+
+    const result = await extractBookCover(coverBook());
+
+    expect(result!.extension).toBe('png');
+    expect(Buffer.from(result!.data).toString()).toBe('PNG-COVER');
+  });
+
+  test('prefers the EPUB 3 cover-image over the EPUB 2 meta reference', async () => {
+    setupEpub(
+      `<package><metadata>
+        <meta name="cover" content="old-cover"/>
+      </metadata><manifest>
+        <item id="old-cover" href="old.png" media-type="image/png"/>
+        <item id="new-cover" href="new.jpg" media-type="image/jpeg" properties="cover-image"/>
+      </manifest><spine></spine></package>`,
+      { 'OEBPS/old.png': 'OLD', 'OEBPS/new.jpg': 'NEW' },
+    );
+
+    const result = await extractBookCover(coverBook());
+
+    expect(Buffer.from(result!.data).toString()).toBe('NEW');
+  });
+
+  test('falls back to an image whose href hints at a cover', async () => {
+    setupEpub(
+      `<package><manifest>
+        <item id="img1" href="cover.jpeg" media-type="image/jpeg"/>
+        <item id="c1" href="c1.xhtml" media-type="application/xhtml+xml"/>
+      </manifest><spine><itemref idref="c1"/></spine></package>`,
+      { 'OEBPS/cover.jpeg': 'FALLBACK-COVER' },
+    );
+
+    const result = await extractBookCover(coverBook());
+
+    expect(result!.extension).toBe('jpeg');
+    expect(Buffer.from(result!.data).toString()).toBe('FALLBACK-COVER');
+  });
+
+  test('returns null when no cover can be located', async () => {
+    setupEpub(
+      `<package><manifest>
+        <item id="c1" href="c1.xhtml" media-type="application/xhtml+xml"/>
+      </manifest><spine><itemref idref="c1"/></spine></package>`,
+    );
+
+    const result = await extractBookCover(coverBook());
+
+    expect(result).toBeNull();
+  });
+
+  test('returns null when the book has no bookPath', async () => {
+    const result = await extractBookCover(makeBook({ bookPath: undefined }));
+
+    expect(result).toBeNull();
   });
 });

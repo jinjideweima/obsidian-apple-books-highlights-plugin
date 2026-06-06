@@ -12,6 +12,8 @@ describe('VaultManagement', () => {
       createFolder: vi.fn(),
       create: vi.fn(),
       modify: vi.fn(),
+      createBinary: vi.fn(),
+      modifyBinary: vi.fn(),
       adapter: {
         list: vi.fn(),
         rename: vi.fn(),
@@ -169,6 +171,31 @@ describe('VaultManagement', () => {
       await vaultManagement.modifyBookFile({ path: 'ibooks-highlights/Book Title.md' } as any, 'New file content');
 
       expect(mockApp.vault.modify).toHaveBeenCalledWith({ path: 'ibooks-highlights/Book Title.md' } as any, 'New file content');
+    });
+  });
+
+  describe('upsertBinaryFile', () => {
+    test('Should create a binary file when it does not exist', async () => {
+      vi.mocked(mockApp.vault.getFileByPath).mockReturnValue(null);
+      const vaultManagement = new VaultManagement(mockApp, mockSettings);
+      const data = new Uint8Array([1, 2, 3]).buffer;
+
+      await vaultManagement.upsertBinaryFile('ibooks-highlights/covers/Book.jpg', data);
+
+      expect(mockApp.vault.createBinary).toHaveBeenCalledWith('ibooks-highlights/covers/Book.jpg', data);
+      expect(mockApp.vault.modifyBinary).not.toHaveBeenCalled();
+    });
+
+    test('Should modify an existing binary file', async () => {
+      const existing = { path: 'ibooks-highlights/covers/Book.jpg' };
+      vi.mocked(mockApp.vault.getFileByPath).mockReturnValue(existing as any);
+      const vaultManagement = new VaultManagement(mockApp, mockSettings);
+      const data = new Uint8Array([4, 5, 6]).buffer;
+
+      await vaultManagement.upsertBinaryFile('ibooks-highlights/covers/Book.jpg', data);
+
+      expect(mockApp.vault.modifyBinary).toHaveBeenCalledWith(existing, data);
+      expect(mockApp.vault.createBinary).not.toHaveBeenCalled();
     });
   });
 

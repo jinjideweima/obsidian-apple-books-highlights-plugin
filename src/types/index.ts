@@ -24,6 +24,8 @@ export interface IAnnotation {
 
 export interface IBookWithAnnotations extends IBook {
   annotations: IAnnotation[];
+  // Vault-relative path to the cover image extracted from the EPUB during import.
+  coverImagePath?: string;
 }
 
 // oxfmt-ignore

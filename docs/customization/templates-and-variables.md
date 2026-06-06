@@ -15,7 +15,11 @@ source: Apple Books
 book_id: "{{bookId}}"
 annotation_count: {{annotations.length}}
 status: "{{#if bookFinishedDate}}已读{{else}}在读{{/if}}"
-{{#if bookCoverUrl}}cover: "{{{bookCoverUrl}}}"{{/if}}
+{{#if coverImagePath}}
+cover: "[[{{{coverImagePath}}}]]"
+{{else if bookCoverUrl}}
+cover: "{{{bookCoverUrl}}}"
+{{/if}}
 cssclasses:
   - wide-apple-book
 tags:
@@ -54,7 +58,8 @@ theme: receipt
 | `{{bookLanguage}}` | 语言代码 |
 | `{{bookLastOpenedDate}}` | 最后打开日期（需配合 `dateFormat`） |
 | `{{bookFinishedDate}}` | 读完日期（需配合 `dateFormat`） |
-| `{{bookCoverUrl}}` | 封面 URL |
+| `{{bookCoverUrl}}` | Apple Books 数据库里的封面地址（常为空） |
+| `{{{coverImagePath}}}` | 导入时从 EPUB 自动提取的封面在 Vault 内的路径；提取成功时默认模板会优先用它 |
 | `{{annotations}}` | 摘录数组 |
 | `{{annotations.length}}` | 摘录总数 |
 

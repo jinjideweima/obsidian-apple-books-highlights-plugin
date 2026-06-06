@@ -10,7 +10,11 @@ source: Apple Books
 book_id: "{{bookId}}"
 annotation_count: {{annotations.length}}
 status: "{{#if bookFinishedDate}}已读{{else}}在读{{/if}}"
-{{#if bookCoverUrl}}cover: "{{{bookCoverUrl}}}"{{/if}}
+{{#if coverImagePath}}
+cover: "[[{{{coverImagePath}}}]]"
+{{else if bookCoverUrl}}
+cover: "{{{bookCoverUrl}}}"
+{{/if}}
 cssclasses:
   - wide-apple-book
 tags:
