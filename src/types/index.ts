@@ -44,6 +44,7 @@ export interface IBookHighlightsPluginSettings {
   highlightsSortingCriterion: IHighlightsSortingCriterion;
   template: string;
   filenameTemplate: string;
+  coverPathTemplate?: string;
   keepMeSectionOpeningDelimiter: string;
   keepMeSectionClosingDelimiter: string;
   keepMeSectionData?: Record<string, string>;

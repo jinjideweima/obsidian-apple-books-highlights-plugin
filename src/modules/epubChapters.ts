@@ -543,7 +543,9 @@ export const extractBookCover = async (book: IBookWithAnnotations): Promise<{ da
 
     const coverPath = normalizePath(joinPath(context.opfDir, coverHref));
     const data = await context.reader.readBinary(coverPath);
-    const extension = (coverHref.split('.').pop() || '').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+    const rawExtension = (coverHref.split('.').pop() || '').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+    // Normalize jpeg -> jpg so it matches the common .jpg convention (and existing manual covers).
+    const extension = rawExtension === 'jpeg' ? 'jpg' : rawExtension;
 
     return { data, extension };
   } catch (error) {

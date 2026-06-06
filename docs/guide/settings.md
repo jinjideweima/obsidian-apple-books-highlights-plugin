@@ -83,6 +83,27 @@ Obsidian 启动时自动导入所有 Apple Books 摘录。遵循备份设置。
 
 </span>
 
+## 封面路径模板
+
+<span v-pre>
+
+- 默认值：留空
+
+插件会从 EPUB 文件里自动提取封面图。这个模板控制封面图**保存到 Vault 内的哪个路径**（相对 Vault 根目录，不含扩展名）。
+
+- **留空**：封面保存到 `<导入目录>/covers/<书名>`
+- **自定义**：例如填 `附件/书封/{{{bookTitle}}} - {{{bookAuthor}}}`，封面就保存到 `附件/书封/书名 - 作者.<扩展名>`
+
+可用变量：`{{{bookTitle}}}`、`{{bookId}}`、`{{{bookAuthor}}}`、`{{{bookGenre}}}`、`{{bookLanguage}}`
+
+</span>
+
+> [!TIP]
+> 扩展名会自动跟随封面的真实格式（jpg / png / webp …），书籍主笔记 frontmatter 里的 `cover` 字段也会同步指向它——图片和引用始终一致，无需手动转换格式。
+
+> [!NOTE]
+> 仅对**无 DRM 的 EPUB**（侧载书、多数非商店购买书）有效。在 macOS 上，若书籍存放在 iCloud，需要给 Obsidian 授予「完全磁盘访问」权限才能读取。
+
 ## 重置模板
 
 将书籍主笔记模板恢复为默认值。

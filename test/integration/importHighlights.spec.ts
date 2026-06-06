@@ -205,4 +205,23 @@ describe('importHighlights', () => {
     // ...and the user gets one actionable access notice.
     expect(NoticeMock).toHaveBeenCalledWith(expect.stringContaining('完全磁盘访问'), 0);
   });
+
+  test('Should place the cover using a custom coverPathTemplate', async () => {
+    const customSettings = { ...mockSettings, coverPathTemplate: '附件/书封/{{{bookTitle}}} - {{{bookAuthor}}}' };
+    const vaultManagement = new VaultManagement(mockApp, customSettings);
+
+    vi.spyOn(annotationProcessing, 'aggregateBooksWithAnnotations').mockResolvedValue([{ ...aggregatedBooksAndAnnotations[0] }]);
+    vi.mocked(extractBookCover).mockResolvedValue({ data: new Uint8Array([1, 2, 3]), extension: 'png' });
+
+    const ensureFolderSpy = vi.spyOn(vaultManagement, 'ensureFolder');
+    const upsertBinarySpy = vi.spyOn(vaultManagement, 'upsertBinaryFile').mockResolvedValue();
+    const createBookFileSpy = vi.spyOn(vaultManagement, 'createBookFile');
+
+    await importHighlights(vaultManagement, customSettings);
+
+    // aggregatedBooksAndAnnotations[0] = iPhone User Guide by Apple Inc.; extension follows the real image (png)
+    expect(ensureFolderSpy).toHaveBeenCalledWith('附件/书封');
+    expect(upsertBinarySpy).toHaveBeenCalledWith('附件/书封/iPhone User Guide - Apple Inc..png', expect.any(ArrayBuffer));
+    expect(createBookFileSpy.mock.calls[0][1]).toContain('cover: "[[附件/书封/iPhone User Guide - Apple Inc..png]]"');
+  });
 });

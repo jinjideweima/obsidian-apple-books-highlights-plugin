@@ -459,7 +459,7 @@ describe('extractBookCover', () => {
 
     const result = await extractBookCover(coverBook());
 
-    expect(result!.extension).toBe('jpeg');
+    expect(result!.extension).toBe('jpg'); // .jpeg is normalized to .jpg
     expect(Buffer.from(result!.data).toString()).toBe('FALLBACK-COVER');
   });
 

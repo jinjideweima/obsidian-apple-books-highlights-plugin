@@ -53,6 +53,7 @@ export const defaultPluginSettings: IBookHighlightsPluginSettings = {
   highlightsSortingCriterion: 'creationDateOldToNew',
   template: defaultTemplate,
   filenameTemplate: `{{{${allowedFilenameTemplateVariables[0]}}}}`,
+  coverPathTemplate: '',
   keepMeSectionOpeningDelimiter: '%% keep-me %%',
   keepMeSectionClosingDelimiter: '%% /keep-me %%',
   keepMeSectionData: {},
@@ -78,6 +79,7 @@ export class IBookHighlightsSettingTab extends PluginSettingTab {
     this.addTemplateSetting(containerEl);
     this.addKeepMeSectionSetting(containerEl);
     this.addFilenameTemplateSetting(containerEl);
+    this.addCoverPathTemplateSetting(containerEl);
     this.addResetTemplateSetting(containerEl);
     this.addCredits(containerEl);
   }
@@ -217,6 +219,40 @@ export class IBookHighlightsSettingTab extends PluginSettingTab {
         .onChange(async (value) => {
           const valueToSet = value === '' ? defaultPluginSettings.filenameTemplate : value;
           this.plugin.settings.filenameTemplate = valueToSet;
+
+          await this.plugin.saveSettings();
+        });
+      return text;
+    });
+  }
+
+  addCoverPathTemplateSetting(containerEl: HTMLElement): void {
+    const coverTemplate = new Setting(containerEl)
+      .setName('封面路径模板')
+      .setDesc(
+        createFragment((el) => {
+          el.appendText('从 EPUB 自动提取的封面图保存到 Vault 内的哪个路径（相对 Vault 根目录，不含扩展名）。');
+          el.createEl('br');
+          el.appendText('留空则保存到：<导入目录>/covers/<书名>');
+          el.createEl('br');
+          el.appendText('可用变量：');
+          const ul = el.createEl('ul');
+          for (const allowedVariable of allowedFilenameTemplateVariables) {
+            ul.createEl('li', { text: `{{{${allowedVariable}}}}` });
+          }
+          el.appendText('示例：附件/书封/{{{bookTitle}}} - {{{bookAuthor}}}');
+          el.createEl('br');
+          el.appendText('扩展名会自动跟随封面真实格式（jpg/png/…），无需手动转换。');
+        }),
+      )
+      .setClass('ibooks-highlights-cover-path-template');
+
+    coverTemplate.addText((text) => {
+      text
+        .setPlaceholder('留空使用默认 covers/ 目录')
+        .setValue(this.plugin.settings.coverPathTemplate || '')
+        .onChange(async (value) => {
+          this.plugin.settings.coverPathTemplate = value;
 
           await this.plugin.saveSettings();
         });
