@@ -1,20 +1,20 @@
 import type IBookHighlightsPlugin from '../../main';
 import type { IBookHighlightsPluginSettings } from '../types';
 import { importHighlights } from '../importHighlights';
-import { OverwriteBookModal } from '../modals/overwriteConsent';
 import { showSuccessfulImportNotice, showFailedImportNotice, showErrorInConsole } from './notificationCenter';
 
 export const backupAndImport = async (plugin: IBookHighlightsPlugin, settings: IBookHighlightsPluginSettings, importMode?: 'modify') => {
-  if (settings.backup) {
-    try {
+  try {
+    if (settings.backup) {
       await plugin.vault.backupAllHighlights();
       await importHighlights(plugin.vault, settings, importMode);
-      showSuccessfulImportNotice();
-    } catch (error) {
-      showFailedImportNotice(plugin.manifest.name);
-      showErrorInConsole(plugin.manifest.name, error);
+    } else {
+      await importHighlights(plugin.vault, settings, importMode ?? 'modify');
     }
-  } else {
-    new OverwriteBookModal(plugin.app, plugin).open();
+
+    showSuccessfulImportNotice();
+  } catch (error) {
+    showFailedImportNotice(plugin.manifest.name);
+    showErrorInConsole(plugin.manifest.name, error);
   }
 };

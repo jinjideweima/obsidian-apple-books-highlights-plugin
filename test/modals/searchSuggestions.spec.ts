@@ -13,11 +13,7 @@ vi.mock('../../src/modules/templateProcessing', () => ({
 vi.mock('../../src/modules/highlightCards', () => ({
   importHighlightCards: vi.fn(),
 }));
-vi.mock('../../src/importHighlights', () => ({
-  importHighlights: vi.fn(),
-}));
 
-import { importHighlights } from '../../src/importHighlights';
 import { OverwriteBookModal } from '../../src/modals/overwriteConsent';
 import { IBookHighlightsPluginSearchModal } from '../../src/modals/searchSuggestions';
 import { aggregateBooksWithAnnotations } from '../../src/modules/annotationsProcessing';
@@ -182,24 +178,16 @@ describe('OverwriteBookModal', () => {
     Setting.instances.length = 0;
   });
 
-  const collectText = (modal: OverwriteBookModal): string => (modal.contentEl as unknown as MockElement).collectText();
-
-  test('Should show a modal window for bulk import', () => {
-    const modal = new OverwriteBookModal(new App() as any, makePlugin());
-
-    modal.onOpen();
-
-    const text = collectText(modal);
-    expect(text).toContain('批量导入会覆盖导入目录中的');
-    expect(text).toContain('所有书籍主笔记');
-    expect(text).toContain('是否继续？');
-    const content = modal.contentEl as unknown as MockElement;
-    expect(content.findAll('span').some((span) => span.hasClass('modal-rewrite-all-books'))).toBe(true);
+  const makeFileDetails = (overrides: Record<string, unknown> = {}) => ({
+    file: Object.assign(new TFile(), { name: 'Atomic Habits.md' }) as any,
+    compiledContent: 'content',
+    ...overrides,
   });
 
+  const collectText = (modal: OverwriteBookModal): string => (modal.contentEl as unknown as MockElement).collectText();
+
   test('Should show a modal window with book details', () => {
-    const file = Object.assign(new TFile(), { name: 'Atomic Habits.md' }) as any;
-    const modal = new OverwriteBookModal(new App() as any, makePlugin(), { file, compiledContent: 'content' });
+    const modal = new OverwriteBookModal(new App() as any, makePlugin(), makeFileDetails());
 
     modal.onOpen();
 
@@ -209,20 +197,6 @@ describe('OverwriteBookModal', () => {
     expect(text).toContain('是否继续覆盖？');
     const content = modal.contentEl as unknown as MockElement;
     expect(content.findAll('p').some((p) => p.hasClass('modal-rewrite-book-title'))).toBe(true);
-  });
-
-  test('Bulk overwrite confirmation imports all highlights and closes the modal', async () => {
-    const plugin = makePlugin();
-    const modal = new OverwriteBookModal(new App() as any, plugin);
-    const closeSpy = vi.spyOn(modal, 'close').mockImplementation(() => {});
-    modal.onOpen();
-
-    const [confirmButton] = Setting.instances.at(-1)!.buttons();
-    await confirmButton.click();
-
-    expect(importHighlights).toHaveBeenCalledWith(plugin.vault, plugin.settings, 'modify');
-    expect(NoticeMock).toHaveBeenCalledWith('Apple Books 摘录导入成功');
-    expect(closeSpy).toHaveBeenCalled();
   });
 
   test('Single-book overwrite confirmation rewrites the file and its cards', async () => {
@@ -248,7 +222,7 @@ describe('OverwriteBookModal', () => {
 
   test('Cancel button closes the modal without importing', async () => {
     const plugin = makePlugin();
-    const modal = new OverwriteBookModal(new App() as any, plugin);
+    const modal = new OverwriteBookModal(new App() as any, plugin, makeFileDetails());
     const closeSpy = vi.spyOn(modal, 'close').mockImplementation(() => {});
     modal.onOpen();
 
@@ -256,13 +230,13 @@ describe('OverwriteBookModal', () => {
     await cancelButton.click();
 
     expect(closeSpy).toHaveBeenCalled();
-    expect(importHighlights).not.toHaveBeenCalled();
+    expect(plugin.vault.modifyBookFile).not.toHaveBeenCalled();
   });
 
   test('Failed overwrite shows the failure notice', async () => {
     const plugin = makePlugin();
-    vi.mocked(importHighlights).mockRejectedValueOnce(new Error('write failed'));
-    const modal = new OverwriteBookModal(new App() as any, plugin);
+    plugin.vault.modifyBookFile.mockRejectedValueOnce(new Error('write failed'));
+    const modal = new OverwriteBookModal(new App() as any, plugin, makeFileDetails());
     vi.spyOn(modal, 'close').mockImplementation(() => {});
     modal.onOpen();
 
@@ -273,7 +247,7 @@ describe('OverwriteBookModal', () => {
   });
 
   test('onClose empties the modal content', () => {
-    const modal = new OverwriteBookModal(new App() as any, makePlugin());
+    const modal = new OverwriteBookModal(new App() as any, makePlugin(), makeFileDetails());
     modal.onOpen();
     expect((modal.contentEl as unknown as MockElement).children.length).toBeGreaterThan(0);
 

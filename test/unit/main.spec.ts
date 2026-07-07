@@ -115,12 +115,9 @@ describe('IBookHighlightsPlugin', () => {
       expect(NoticeMock).toHaveBeenCalledWith('Apple Books 摘录导入成功');
     });
 
-    test('Should show OverwriteBookModal on start without creating a backup when backup is disabled', async () => {
+    test('Should import all highlights on start without creating a backup when backup is disabled', async () => {
       mockLoadData.mockResolvedValueOnce({ importOnStart: true, backup: false } as any);
-
-      const openMock = vi.fn(function (this: any) {});
-      const { OverwriteBookModal } = await import('../../src/modals/overwriteConsent');
-      vi.spyOn(OverwriteBookModal.prototype, 'open').mockImplementation(openMock);
+      importHighlightsMock.mockResolvedValueOnce(aggregatedBooksAndAnnotations);
 
       const onLayoutReadyPromise = new Promise<void>((resolve) => {
         (plugin.app.workspace.onLayoutReady as any).mockImplementationOnce(async (cb: () => Promise<void> | void) => {
@@ -133,8 +130,8 @@ describe('IBookHighlightsPlugin', () => {
       await onLayoutReadyPromise;
 
       expect(backupAllHighlightsMock).not.toHaveBeenCalled();
-      expect(importHighlightsMock).not.toHaveBeenCalled();
-      expect(openMock).toHaveBeenCalled();
+      expect(importHighlightsMock).toHaveBeenCalledWith(plugin.vault, expect.anything(), 'modify');
+      expect(NoticeMock).toHaveBeenCalledWith('Apple Books 摘录导入成功');
     });
 
     test('Should show success notice if import on start succeeds and backup is enabled', async () => {
@@ -196,17 +193,16 @@ describe('IBookHighlightsPlugin', () => {
       expect(NoticeMock).toHaveBeenCalledWith('[Apple Books Test Mock]:\n导入摘录失败，请打开开发者控制台查看详情（⌥ ⌘ I）', 0);
     });
 
-    test('Should show OverwriteBookModal on ribbon icon click if backup setting is disabled', async () => {
+    test('Should import all highlights on ribbon icon click if backup setting is disabled', async () => {
       mockLoadData.mockResolvedValueOnce({ backup: false } as any);
-
-      const openMock = vi.fn(function (this: any) {});
-      const { OverwriteBookModal } = await import('../../src/modals/overwriteConsent');
-      vi.spyOn(OverwriteBookModal.prototype, 'open').mockImplementation(openMock);
+      importHighlightsMock.mockResolvedValueOnce(aggregatedBooksAndAnnotations);
 
       await plugin.onload();
       const callback = mockAddRibbonIcon.mock.calls[0][2];
       await callback({} as any);
-      expect(openMock).toHaveBeenCalled();
+      expect(backupAllHighlightsMock).not.toHaveBeenCalled();
+      expect(importHighlightsMock).toHaveBeenCalledWith(plugin.vault, expect.anything(), 'modify');
+      expect(NoticeMock).toHaveBeenCalledWith('Apple Books 摘录导入成功');
     });
   });
 
@@ -234,17 +230,16 @@ describe('IBookHighlightsPlugin', () => {
       expect(NoticeMock).toHaveBeenCalledWith('[Apple Books Test Mock]:\n导入摘录失败，请打开开发者控制台查看详情（⌥ ⌘ I）', 0);
     });
 
-    test('Should show OverwriteBookModal on addImportAllBooksCommand if backup setting is disabled', async () => {
+    test('Should import all highlights on addImportAllBooksCommand if backup setting is disabled', async () => {
       mockLoadData.mockResolvedValueOnce({ backup: false } as any);
-
-      const openMock = vi.fn(function (this: any) {});
-      const { OverwriteBookModal } = await import('../../src/modals/overwriteConsent');
-      vi.spyOn(OverwriteBookModal.prototype, 'open').mockImplementation(openMock);
+      importHighlightsMock.mockResolvedValueOnce(aggregatedBooksAndAnnotations);
 
       await plugin.onload();
       const commandCallback = mockAddCommand.mock.calls[0][0].callback;
       await commandCallback({} as any);
-      expect(openMock).toHaveBeenCalled();
+      expect(backupAllHighlightsMock).not.toHaveBeenCalled();
+      expect(importHighlightsMock).toHaveBeenCalledWith(plugin.vault, expect.anything(), 'modify');
+      expect(NoticeMock).toHaveBeenCalledWith('Apple Books 摘录导入成功');
     });
 
     test('Registers the import-all command so it can be triggered from the palette/hotkey', async () => {
