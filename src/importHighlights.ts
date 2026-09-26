@@ -1,7 +1,7 @@
 import type { VaultManagement } from './modules/vaultManagement';
 import type { IBookHighlightsPluginSettings, IBookWithAnnotations, ImportResult } from './types';
 import { enrichBooksWithAnnotations, mapAnnotationsToBooks } from './modules/annotationsProcessing';
-import { mergeBookNote } from './modules/bookNotes';
+import { mergeBookNote, readLegacyBaseline } from './modules/bookNotes';
 import { getBooks, getAnnotations, getDeletedAnnotations } from './modules/dataFetching';
 import { extractBookCover, inferMissingChapters, enrichBookMetadata } from './modules/epubChapters';
 import { importHighlightCards } from './modules/highlightCards';
@@ -76,12 +76,7 @@ export const importHighlights = async (
         return null;
       });
       const oldCover = String(oldProperties.cover || '').match(/^\[\[([^|\]]+)/)?.[1];
-      const baselineCover = String(
-        baseline.cover ||
-          (existing.match(/<!-- abkc:metadata ([\s\S]*?) -->/)?.[1] &&
-            JSON.parse(existing.match(/<!-- abkc:metadata ([\s\S]*?) -->/)![1]).cover) ||
-          '',
-      );
+      const baselineCover = String(baseline.cover || readLegacyBaseline(existing)?.cover || '');
       const managedCover =
         !coverTemplate &&
         oldCover?.startsWith(`${vault.getHighlightsFolder()}/covers/`) &&

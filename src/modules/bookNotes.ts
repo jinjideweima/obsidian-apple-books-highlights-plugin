@@ -5,6 +5,19 @@ import { calculateAppleDate } from './templateProcessing';
 const date = (value: number | null): string | undefined =>
   value && Number.isFinite(value) ? calculateAppleDate(value).format('YYYY-MM-DDTHH:mm:ssZ') : undefined;
 const equal = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
+
+// Notes from 1.9.0 kept the comparison baseline in an HTML comment or property.
+// A damaged record is ignored so the import falls back to preserving manual values.
+export const readLegacyBaseline = (body: string, properties: Properties = {}): Properties | undefined => {
+  const stored = body.match(/<!-- abkc:metadata ([\s\S]*?) -->/)?.[1] || properties.abkc_imported;
+  if (typeof stored !== 'string') return undefined;
+  try {
+    const parsed: unknown = JSON.parse(stored);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Properties) : undefined;
+  } catch {
+    return undefined;
+  }
+};
 export const mergeBookNote = (
   existing: string,
   generated: string,
@@ -14,15 +27,7 @@ export const mergeBookNote = (
 ): string => {
   const old = splitMarkdown(existing);
   const fresh = splitMarkdown(generated);
-  let baseline: Properties = savedBaseline;
-  const stored = old.body.match(/<!-- abkc:metadata ([\s\S]*?) -->/)?.[1] || old.properties.abkc_imported;
-  if (typeof stored === 'string') {
-    try {
-      baseline = JSON.parse(stored);
-    } catch {
-      /* Legacy note: preserve manual values. */
-    }
-  }
+  const baseline: Properties = readLegacyBaseline(old.body, old.properties) || savedBaseline;
   const source: Properties = {
     ...fresh.properties,
     title: book.bookTitle,

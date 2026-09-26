@@ -357,6 +357,19 @@ test('metadata migrates out of prose without joining heading and body; custom pr
   expect([...env.files.keys()].some((entry) => entry.includes('/.abkc-state/'))).toBe(true);
 });
 
+test('damaged legacy metadata comments do not fail the book import', async () => {
+  await sync();
+  const p = mainPath();
+  const old = env.files.get(p) as string;
+  for (const damaged of ['{not json', 'null']) {
+    env.put(p, old + `\n## 我的读书笔记\n\n<!-- abkc:metadata ${damaged} -->\n这是我的正文。\n`);
+    const result = await sync();
+    expect(result.failures).toEqual([]);
+    expect(env.files.get(p)).toContain('这是我的正文。');
+    expect(env.files.get(p)).not.toContain('<!-- abkc:metadata');
+  }
+});
+
 test('source thought updates do not silently fill local notes', async () => {
   await sync();
   annotations[0].note = '新的想法';
