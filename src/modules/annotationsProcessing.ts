@@ -25,7 +25,7 @@ export function enrichBooksWithAnnotations(
 
     const bookRelatedAnnotations = annotationsMap.get(bookId) || [];
     if (bookRelatedAnnotations.length > 0) {
-      const normalizedBookTitle = cleanUpTitle(bookTitle);
+      const normalizedBookTitle = bookTitle;
       booksWithAnnotations.push({
         bookId,
         bookTitle: normalizedBookTitle,
@@ -39,6 +39,7 @@ export function enrichBooksWithAnnotations(
         annotations: bookRelatedAnnotations.map((annotation) => {
           const {
             assetId,
+            sourceAnnotationId,
             chapter,
             contextualText: rawContextualText,
             highlight: rawHighlight,
@@ -51,8 +52,9 @@ export function enrichBooksWithAnnotations(
 
           return {
             assetId,
+            sourceAnnotationId,
             chapter,
-            contextualText: removeTrailingSpaces(preserveNewlineIndentation(rawContextualText)),
+            contextualText: removeTrailingSpaces(preserveNewlineIndentation(rawContextualText || '')),
             highlight: preserveNewlineIndentation(rawHighlight),
             note: rawNote ? preserveNewlineIndentation(rawNote) : null,
             highlightLocation,

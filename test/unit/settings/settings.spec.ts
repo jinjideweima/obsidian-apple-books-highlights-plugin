@@ -23,16 +23,16 @@ describe('Default settings', () => {
     expect(defaultPluginSettings.highlightsFolder).toBe('ibooks-highlights');
     expect(defaultPluginSettings.backup).toBe(false);
     expect(defaultPluginSettings.importOnStart).toBe(false);
-    expect(defaultPluginSettings.highlightsSortingCriterion).toBe('creationDateOldToNew');
+    expect(defaultPluginSettings.highlightsSortingCriterion).toBe('book');
     expect(defaultPluginSettings.template).toBe(defaultTemplate);
-    expect(defaultPluginSettings.filenameTemplate).toBe('{{{bookTitle}}}');
+    expect(defaultPluginSettings.filenameTemplate).toBe('{{{bookTitle}}} - {{{bookAuthor}}}');
   });
 
   test('Should check that default template contains the expected variables with proper escaping', () => {
     const expectedVariables = [
-      '{{bookTitle}}',
+      '{{{yaml bookTitle}}}',
       '{{bookId}}',
-      '{{{bookAuthor}}}',
+      '{{{yaml bookAuthor}}}',
       '{{annotations.length}}',
       '{{#each annotations}}',
       '{{displayIndex @index}}',

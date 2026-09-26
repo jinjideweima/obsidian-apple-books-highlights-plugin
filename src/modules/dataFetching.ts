@@ -38,7 +38,7 @@ const getOptionalBookPathSelect = async (dbPath: string): Promise<string> => {
   }
 };
 
-export const getBooks = async (): Promise<IBook[]> => {
+export const getBooks = async (allowEmpty = false): Promise<IBook[]> => {
   const BOOKS_DB_PATH = getBooksDbPath();
   const bookPathSelect = await getOptionalBookPathSelect(BOOKS_DB_PATH);
 
@@ -57,17 +57,20 @@ export const getBooks = async (): Promise<IBook[]> => {
 
   const books = await dbRequest(BOOKS_DB_PATH, dbQuery);
 
-  if (books.length === 0) {
+  if (books.length === 0 && !allowEmpty) {
     throw new Error('No books found. Looks like your Apple Books library is empty.');
   }
 
   return books;
 };
 
-export const getAnnotations = async (sortingCriterion: IHighlightsSortingCriterion): Promise<IAnnotation[]> => {
+export const getAnnotations = async (sortingCriterion: IHighlightsSortingCriterion, allowEmpty = false): Promise<IAnnotation[]> => {
   const HIGHLIGHTS_DB_PATH = getAnnotationsDbPath();
 
+  const columns = await executeDbQuery<Array<{ name: string }>>(HIGHLIGHTS_DB_PATH, 'PRAGMA table_info(ZAEANNOTATION)');
+  const uuidSelect = columns.some((c) => c.name === 'ZANNOTATIONUUID') ? 'ZANNOTATIONUUID as sourceAnnotationId,' : '';
   const baseQuery = `SELECT
+  ${uuidSelect}
   ZANNOTATIONASSETID as assetId,
   ZFUTUREPROOFING5 as chapter,
   ZANNOTATIONREPRESENTATIVETEXT as contextualText,
@@ -95,7 +98,7 @@ export const getAnnotations = async (sortingCriterion: IHighlightsSortingCriteri
 
   const retrievedAnnotations = await annotationsRequest(HIGHLIGHTS_DB_PATH, fullQuery);
 
-  if (retrievedAnnotations.length === 0) {
+  if (retrievedAnnotations.length === 0 && !allowEmpty) {
     throw new Error('No highlights found. Make sure you made some highlights in your Apple Books.');
   }
 
@@ -112,4 +115,14 @@ export const dbRequest = async (dbPath: string, sqlQuery: string): Promise<IBook
 
 export const annotationsRequest = async (dbPath: string, sqlQuery: string): Promise<IAnnotation[]> => {
   return executeDbQuery<IAnnotation[]>(dbPath, sqlQuery);
+};
+
+export const getDeletedAnnotations = async (): Promise<Array<{ assetId: string; highlightLocation: string; sourceAnnotationId?: string }>> => {
+  const columns = await executeDbQuery<Array<{ name: string }>>(getAnnotationsDbPath(), 'PRAGMA table_info(ZAEANNOTATION)');
+  const uuidSelect = columns.some((c) => c.name === 'ZANNOTATIONUUID') ? 'ZANNOTATIONUUID as sourceAnnotationId,' : '';
+  return executeDbQuery(
+    getAnnotationsDbPath(),
+    `SELECT ${uuidSelect} ZANNOTATIONASSETID as assetId, ZANNOTATIONLOCATION as highlightLocation
+    FROM ZAEANNOTATION WHERE ZANNOTATIONDELETED = 1 AND ZANNOTATIONLOCATION IS NOT NULL`,
+  );
 };

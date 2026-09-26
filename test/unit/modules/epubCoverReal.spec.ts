@@ -1,7 +1,7 @@
+import { zipSync } from 'fflate';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { deflateRawSync } from 'node:zlib';
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 
 // Forward the plugin's node-module loader to the REAL fs/path/zlib so this test
@@ -26,22 +26,7 @@ import { extractBookCover } from '../../../src/modules/epubChapters';
 
 // Build a minimal but real ZIP (local file entries, deflate-compressed) — exactly the
 // structure the hand-written reader walks. crc32 is left 0 because the reader doesn't verify it.
-const zipEntry = (name: string, data: Buffer): Buffer => {
-  const compressed = deflateRawSync(data);
-  const nameBuf = Buffer.from(name, 'utf8');
-  const header = Buffer.alloc(30);
-  header.writeUInt32LE(0x04034b50, 0); // local file header signature
-  header.writeUInt16LE(20, 4); // version needed
-  header.writeUInt16LE(0, 6); // flags (no data descriptor)
-  header.writeUInt16LE(8, 8); // compression method = deflate
-  header.writeUInt32LE(0, 14); // crc32 (not validated by the reader)
-  header.writeUInt32LE(compressed.length, 18); // compressed size
-  header.writeUInt32LE(data.length, 22); // uncompressed size
-  header.writeUInt16LE(nameBuf.length, 26); // file name length
-  return Buffer.concat([header, nameBuf, compressed]);
-};
-
-const buildEpub = (files: Array<[string, Buffer]>): Buffer => Buffer.concat(files.map(([name, data]) => zipEntry(name, data)));
+const buildEpub = (files: Array<[string, Buffer]>): Buffer => Buffer.from(zipSync(Object.fromEntries(files)));
 
 const makeBook = (bookPath: string): any => ({
   bookId: 'B1',

@@ -1,227 +1,393 @@
-import { App, TFile, TFolder } from 'obsidian';
-import { afterEach, describe, expect, test, vi } from 'vitest';
-import type { IBookHighlightsPluginSettings } from '../../src/types';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
+import type { IBook, IAnnotation } from '../../src/types';
 import { importHighlights } from '../../src/importHighlights';
-import * as annotationProcessing from '../../src/modules/annotationsProcessing';
-import { extractBookCover } from '../../src/modules/epubChapters';
-import { VaultManagement } from '../../src/modules/vaultManagement';
-import { defaultTemplate } from '../../src/settings';
-import aggregatedBooksAndAnnotations from '../fixtures/annotationProcessing/aggregatedBooksAndAnnotations.json' with { type: 'json' };
-import { NoticeMock } from '../mocks/obsidian';
+import * as source from '../../src/modules/dataFetching';
+import * as epub from '../../src/modules/epubChapters';
+import {
+  getHighlightCards,
+  setHighlightFavorite,
+  setHighlightLocalNote,
+  setHighlightProperties,
+  deleteArchivedCard,
+} from '../../src/modules/highlightRepository';
+import { parseFrontmatter, patchProperties } from '../../src/utils/markdown';
+import { memoryVault } from '../mocks/memoryVault';
 
+vi.mock('../../src/modules/dataFetching');
 vi.mock('../../src/modules/epubChapters', () => ({
+  inferMissingChapters: vi.fn(),
+  enrichBookMetadata: vi.fn(),
   extractBookCover: vi.fn(),
-  isEpubPermissionError: (error: { code?: string } | null) => error?.code === 'EPERM' || error?.code === 'EACCES',
 }));
-
-describe('importHighlights', () => {
-  const mockApp = {
-    vault: {
-      getFolderByPath: vi.fn(),
-      getFileByPath: vi.fn(),
-      createFolder: vi.fn(),
-      create: vi.fn(),
-      modify: vi.fn(),
-      delete: vi.fn(),
-      adapter: {
-        list: vi.fn().mockResolvedValue({ files: [], folders: [] }),
-        rename: vi.fn(),
-      },
-    },
-  } as unknown as App;
-
-  const mockSettings: IBookHighlightsPluginSettings = {
-    highlightsFolder: 'ibooks-highlights',
-    backup: false,
-    importOnStart: false,
-    highlightsSortingCriterion: 'creationDateOldToNew',
-    template: defaultTemplate,
-    filenameTemplate: '{{{bookTitle}}}',
-    keepMeSectionOpeningDelimiter: '%% keep-me %%',
-    keepMeSectionClosingDelimiter: '%% /keep-me %%',
-    keepMeSectionData: {},
-  };
-
-  const expectBookContent = (content: string, bookTitle: string, bookId: string) => {
-    expect(content).toContain('type: book');
-    expect(content).toContain(`title: "${bookTitle}"`);
-    expect(content).toContain(`book_id: "${bookId}"`);
-    expect(content).toContain('<summary>摘录目录</summary>');
-    expect(content).toContain('## 本书摘录');
-    expect(content).toContain('```apple-books-board');
-    expect(content).toContain(`book_id: ${bookId}`);
-  };
-
-  afterEach(() => {
-    vi.resetAllMocks();
+const book: IBook = {
+  bookId: '001234',
+  bookTitle: '学会说 "不"',
+  bookAuthor: '作者甲',
+  bookGenre: '心理',
+  bookLanguage: 'zh',
+  bookLastOpenedDate: 700000000,
+  bookFinishedDate: null,
+  bookCoverUrl: '',
+};
+const annotation = (location: string): IAnnotation => ({
+  assetId: book.bookId,
+  chapter: '第一章',
+  contextualText: '上下文',
+  highlight: '划线' + location,
+  note: 'Apple 想法',
+  highlightLocation: location,
+  highlightStyle: 3,
+  highlightCreationDate: 1,
+  highlightModificationDate: 1,
+});
+let env: ReturnType<typeof memoryVault>;
+let books: IBook[];
+let annotations: IAnnotation[];
+let deleted: Array<{ assetId: string; highlightLocation: string }>;
+const sync = () => importHighlights(env.vault, env.settings);
+const cards = () => getHighlightCards(env.app, env.settings);
+const mainPath = () => [...env.files.keys()].find((p) => p.endsWith('.md') && !p.includes('/cards/') && !p.includes('-bk-'))!;
+beforeEach(() => {
+  vi.resetAllMocks();
+  env = memoryVault();
+  books = [{ ...book }];
+  annotations = [annotation('loc1'), annotation('loc2')];
+  deleted = [];
+  vi.mocked(source.getBooks).mockImplementation(async () => books);
+  vi.mocked(source.getAnnotations).mockImplementation(async () => annotations);
+  vi.mocked(source.getDeletedAnnotations).mockImplementation(async () => deleted);
+  vi.mocked(epub.extractBookCover).mockResolvedValue(null);
+});
+describe('safe incremental import', () => {
+  test('quoted title, leading-zero ID and actual source link round-trip', async () => {
+    await sync();
+    const [card] = await cards();
+    expect(card.bookTitle).toBe(book.bookTitle);
+    expect(card.bookId).toBe('001234');
+    expect(env.files.get(card.path)).toContain(`[[${mainPath().slice(0, -3)}|`);
+    expect(parseFrontmatter(env.files.get(mainPath()) as string).title).toBe(book.bookTitle);
   });
-
-  test('Should save aggregated highlights as separate files using default importMode (create)', async () => {
-    const vaultManagement = new VaultManagement(mockApp, mockSettings);
-
-    vi.spyOn(annotationProcessing, 'aggregateBooksWithAnnotations').mockResolvedValue(aggregatedBooksAndAnnotations);
-
-    const createBookFileSpy = vi.spyOn(vaultManagement, 'createBookFile');
-    const upsertFileSpy = vi.spyOn(vaultManagement, 'upsertFile');
-
-    await importHighlights(vaultManagement, mockSettings);
-
-    expect(createBookFileSpy).toHaveBeenCalledTimes(4);
-    expect(createBookFileSpy).toHaveBeenNthCalledWith(1, 'iPhone User Guide', expect.any(String));
-    expectBookContent(createBookFileSpy.mock.calls[0][1], 'iPhone User Guide', 'THBFYNJKTGFTTVCGSAE1');
-    // Card filenames use stable annotationId instead of position index
-    expect(upsertFileSpy).toHaveBeenCalledWith(
-      'ibooks-highlights/cards/iPhone User Guide/ibooks-thbfynjk-7ed3b8a9.md',
-      expect.stringContaining('# 摘录 1'),
+  test('unchanged second import writes no Markdown or covers', async () => {
+    vi.mocked(epub.extractBookCover).mockResolvedValue({ data: new Uint8Array([1, 2]), extension: 'png' });
+    await sync();
+    env.api.modify.mockClear();
+    env.api.process.mockClear();
+    env.api.modifyBinary.mockClear();
+    const result = await sync();
+    expect(result.updated).toBe(0);
+    expect(result.unchanged).toBe(3);
+    expect(env.api.modify).not.toHaveBeenCalled();
+    expect(env.api.process).not.toHaveBeenCalled();
+    expect(env.api.modifyBinary).not.toHaveBeenCalled();
+  });
+  test('backup copies cards without moving or resetting local notes/favorites', async () => {
+    await sync();
+    const [card] = await cards();
+    await setHighlightFavorite(env.app, card, true);
+    await setHighlightLocalNote(env.app, card, '我的独立思考');
+    env.settings.backup = true;
+    await sync();
+    const [after] = await cards();
+    expect(after.favorite).toBe(true);
+    expect(after.localNote).toBe('我的独立思考');
+    expect(env.api.adapter.rename).not.toHaveBeenCalled();
+    expect([...env.files].some(([p, c]) => p.includes('-bk-') && String(c).includes('我的独立思考'))).toBe(true);
+  });
+  test('retains main-note prose, manual properties, lists and cleared values', async () => {
+    await sync();
+    const path = mainPath();
+    env.put(
+      path,
+      patchProperties(env.files.get(path) as string, {
+        rating: 5,
+        category: ['工作', '生活'],
+        title: '我的书名',
+        status: '暂停',
+        author: '',
+      }) + '\n## 我的总结\n永远保留\n',
     );
+    annotations.push(annotation('loc3'));
+    await sync();
+    const text = env.files.get(path) as string;
+    expect(parseFrontmatter(text)).toMatchObject({
+      rating: 5,
+      category: ['工作', '生活'],
+      title: '我的书名',
+      status: '暂停',
+      author: '',
+      annotation_count: 3,
+    });
+    expect(text).toContain('永远保留');
   });
-
-  test('Should modify existing files when importMode === modify', async () => {
-    const vaultManagement = new VaultManagement(mockApp, mockSettings);
-
-    vi.spyOn(annotationProcessing, 'aggregateBooksWithAnnotations').mockResolvedValue([aggregatedBooksAndAnnotations[0]]);
-    vi.spyOn(vaultManagement, 'getFilePath').mockReturnValue({ path: 'ibooks-highlights/iPhone User Guide.md' } as TFile);
-
-    const modifyBookFileSpy = vi.spyOn(vaultManagement, 'modifyBookFile');
-
-    await importHighlights(vaultManagement, mockSettings, 'modify');
-
-    expect(modifyBookFileSpy).toHaveBeenCalledWith({ path: 'ibooks-highlights/iPhone User Guide.md' }, expect.any(String));
-    expectBookContent(modifyBookFileSpy.mock.calls[0][1], 'iPhone User Guide', 'THBFYNJKTGFTTVCGSAE1');
+  test('same book ID keeps renamed file and moves existing cards without changing identity', async () => {
+    await sync();
+    const path = mainPath();
+    const before = (await cards()).map((c) => c.path);
+    const newPath = 'ibooks-highlights/我改过的文件名.md';
+    env.put(newPath, env.files.get(path)!);
+    env.files.delete(path);
+    books[0].bookTitle = '来源改名';
+    await sync();
+    expect(mainPath()).toBe(newPath);
+    expect((await cards()).map((c) => c.path.split('/').pop())).toEqual(before.map((p) => p.split('/').pop()));
+    expect((await cards()).every((c) => c.path.includes('/cards/我改过的文件名/'))).toBe(true);
+    expect(env.files.get((await cards())[0].path)).toContain('[[ibooks-highlights/我改过的文件名|');
   });
-
-  test('Should create a new file if importMode === modify but the file does not exist', async () => {
-    const vaultManagement = new VaultManagement(mockApp, mockSettings);
-
-    vi.spyOn(annotationProcessing, 'aggregateBooksWithAnnotations').mockResolvedValue([aggregatedBooksAndAnnotations[0]]);
-    vi.spyOn(vaultManagement, 'getFilePath').mockReturnValue(null);
-
-    const createBookFileSpy = vi.spyOn(vaultManagement, 'createBookFile');
-
-    await importHighlights(vaultManagement, mockSettings, 'modify');
-
-    expect(createBookFileSpy).toHaveBeenCalledWith('iPhone User Guide', expect.any(String));
-    expectBookContent(createBookFileSpy.mock.calls[0][1], 'iPhone User Guide', 'THBFYNJKTGFTTVCGSAE1');
+  test('different book IDs sharing a title do not overwrite one another', async () => {
+    books.push({ ...book, bookId: 'different' });
+    annotations.push({ ...annotation('loc1'), assetId: 'different' });
+    const result = await sync();
+    expect(result.failures).toEqual([]);
+    expect(result.books).toBe(2);
+    expect([...env.files.keys()].filter((p) => p.endsWith('.md') && !p.includes('/cards/'))).toHaveLength(2);
   });
-
-  test('Should embed Keep Me section data if it is stored in settings', async () => {
-    const settingsWithKeepMeSection: IBookHighlightsPluginSettings = {
-      ...mockSettings,
-      template: `${defaultTemplate}\n%% keep-me %%\n%% /keep-me %%\n`,
-      keepMeSectionData: {
-        'iPhone User Guide': `This is a great guide!📕 I learned so much from it.\nDefinitely need to recommend it to Aaron. 😎🤜🤛😎`,
-      },
-    };
-    const vaultManagement = new VaultManagement(mockApp, settingsWithKeepMeSection);
-
-    vi.spyOn(annotationProcessing, 'aggregateBooksWithAnnotations').mockResolvedValue([aggregatedBooksAndAnnotations[0]]);
-
-    const createBookFileSpy = vi.spyOn(vaultManagement, 'createBookFile');
-
-    await importHighlights(vaultManagement, settingsWithKeepMeSection);
-
-    expect(createBookFileSpy).toHaveBeenCalledWith(
-      'iPhone User Guide',
-      expect.stringContaining('Definitely need to recommend it to Aaron.'),
-    );
+  test('explicit single deletion archives ordinary card, keeps file', async () => {
+    annotations.forEach((a) => { a.note = null; });
+    await sync();
+    const [card] = await cards();
+    annotations = [annotation('loc2')];
+    deleted = [{ assetId: book.bookId, highlightLocation: 'loc1' }];
+    const result = await sync();
+    expect(result.archived).toBe(1);
+    expect(env.files.has(card.path)).toBe(true);
+    expect((await cards()).find((c) => c.path === card.path)).toMatchObject({ archived: true, sourceRemoved: true });
   });
-
-  test('Should throw aggregated error if any file operation fails', async () => {
-    const vaultManagement = new VaultManagement(mockApp, mockSettings);
-    vi.spyOn(annotationProcessing, 'aggregateBooksWithAnnotations').mockResolvedValue([aggregatedBooksAndAnnotations[0]]);
-    vi.spyOn(vaultManagement, 'createBookFile').mockRejectedValueOnce(new Error('File write failed'));
-
-    await expect(importHighlights(vaultManagement, mockSettings)).rejects.toThrow(/导入《iPhone User Guide》失败：File write failed/);
+  test('local thought/favorite protects card from archive', async () => {
+    await sync();
+    const [card] = await cards();
+    await setHighlightLocalNote(env.app, card, '独立思考');
+    annotations = [annotation('loc2')];
+    deleted = [{ assetId: book.bookId, highlightLocation: 'loc1' }];
+    expect((await sync()).retained).toBe(1);
+    expect((await cards()).find((c) => c.path === card.path)).toMatchObject({
+      archived: false,
+      sourceRemoved: true,
+      localNote: '独立思考',
+    });
   });
-
-  test('Should not create highlights folder if it already exists', async () => {
-    const vaultManagement = new VaultManagement(mockApp, mockSettings);
-
-    vi.spyOn(annotationProcessing, 'aggregateBooksWithAnnotations').mockResolvedValue([aggregatedBooksAndAnnotations[0]]);
-    vi.spyOn(vaultManagement, 'getHighlightsFolderPath').mockReturnValue({ path: 'ibooks-highlights' } as TFolder);
-
-    const createHighlightsFolderSpy = vi.spyOn(vaultManagement, 'createHighlightsFolder');
-    const createBookFileSpy = vi.spyOn(vaultManagement, 'createBookFile');
-
-    await importHighlights(vaultManagement, mockSettings);
-
-    expect(createHighlightsFolderSpy).not.toHaveBeenCalled();
-    expect(createBookFileSpy).toHaveBeenCalled();
+  test('restored card stays restored on later sync; explicit cleanup only trashes archive', async () => {
+    annotations.forEach((a) => { a.note = null; });
+    await sync();
+    annotations = [annotation('loc2')];
+    deleted = [{ assetId: book.bookId, highlightLocation: 'loc1' }];
+    await sync();
+    const card = (await cards()).find((c) => c.archived)!;
+    await setHighlightProperties(env.app, card, { archived: false, restored: true });
+    await sync();
+    expect((await cards()).find((c) => c.path === card.path)?.archived).toBe(false);
+    await expect(deleteArchivedCard(env.app, card)).rejects.toThrow();
+    await setHighlightProperties(env.app, card, { archived: true });
+    await deleteArchivedCard(env.app, card);
+    expect(env.files.has(card.path)).toBe(false);
   });
-
-  test('Should not process files if importMode is neither create nor modify', async () => {
-    const vaultManagement = new VaultManagement(mockApp, mockSettings);
-
-    vi.spyOn(annotationProcessing, 'aggregateBooksWithAnnotations').mockResolvedValue([aggregatedBooksAndAnnotations[0]]);
-
-    const createBookFileSpy = vi.spyOn(vaultManagement, 'createBookFile');
-    const modifyBookFileSpy = vi.spyOn(vaultManagement, 'modifyBookFile');
-
-    await importHighlights(vaultManagement, mockSettings, 'invalid' as any);
-
-    expect(createBookFileSpy).not.toHaveBeenCalled();
-    expect(modifyBookFileSpy).not.toHaveBeenCalled();
+  test('reappearing source restores archived card', async () => {
+    await sync();
+    annotations = [annotation('loc2')];
+    deleted = [{ assetId: book.bookId, highlightLocation: 'loc1' }];
+    await sync();
+    annotations.push(annotation('loc1'));
+    await sync();
+    expect((await cards()).every((c) => !c.archived && !c.sourceRemoved)).toBe(true);
   });
-
-  test('Should extract the EPUB cover, write it, and reference it in the frontmatter', async () => {
-    const vaultManagement = new VaultManagement(mockApp, mockSettings);
-
-    vi.spyOn(annotationProcessing, 'aggregateBooksWithAnnotations').mockResolvedValue([{ ...aggregatedBooksAndAnnotations[0] }]);
-    vi.mocked(extractBookCover).mockResolvedValue({ data: new Uint8Array([1, 2, 3]), extension: 'jpg' });
-
-    const upsertBinarySpy = vi.spyOn(vaultManagement, 'upsertBinaryFile').mockResolvedValue();
-    const createBookFileSpy = vi.spyOn(vaultManagement, 'createBookFile');
-
-    await importHighlights(vaultManagement, mockSettings);
-
-    expect(upsertBinarySpy).toHaveBeenCalledWith('ibooks-highlights/covers/iPhone User Guide.jpg', expect.any(ArrayBuffer));
-    expect(createBookFileSpy.mock.calls[0][1]).toContain('cover: "[[ibooks-highlights/covers/iPhone User Guide.jpg]]"');
+  test('missing book and final-highlight ambiguity preserve all existing notes even with backup enabled', async () => {
+    await sync();
+    const before = new Map(env.files);
+    env.settings.backup = true;
+    books = [];
+    annotations = [];
+    await sync();
+    expect(env.files).toEqual(before);
+    books = [{ ...book }];
+    deleted = [{ assetId: book.bookId, highlightLocation: 'loc1' }];
+    expect((await sync()).warnings.length).toBeGreaterThan(0);
+    expect(env.files).toEqual(before);
   });
-
-  test('Should skip cover handling when the book has no extractable cover', async () => {
-    const vaultManagement = new VaultManagement(mockApp, mockSettings);
-
-    vi.spyOn(annotationProcessing, 'aggregateBooksWithAnnotations').mockResolvedValue([{ ...aggregatedBooksAndAnnotations[0] }]);
-    vi.mocked(extractBookCover).mockResolvedValue(null);
-
-    const upsertBinarySpy = vi.spyOn(vaultManagement, 'upsertBinaryFile').mockResolvedValue();
-
-    await importHighlights(vaultManagement, mockSettings);
-
-    expect(upsertBinarySpy).not.toHaveBeenCalled();
+  test('absence without explicit deletion never archives a card', async () => {
+    await sync();
+    annotations = [annotation('loc2')];
+    await sync();
+    expect((await cards()).every((c) => !c.archived)).toBe(true);
   });
-
-  test('Should show a single access notice when covers fail to read due to permissions', async () => {
-    const vaultManagement = new VaultManagement(mockApp, mockSettings);
-
-    vi.spyOn(annotationProcessing, 'aggregateBooksWithAnnotations').mockResolvedValue([{ ...aggregatedBooksAndAnnotations[0] }]);
-    vi.mocked(extractBookCover).mockRejectedValue(Object.assign(new Error('Operation not permitted'), { code: 'EPERM' }));
-    const createBookFileSpy = vi.spyOn(vaultManagement, 'createBookFile');
-
-    await importHighlights(vaultManagement, mockSettings);
-
-    // The import still completes...
-    expect(createBookFileSpy).toHaveBeenCalled();
-    // ...and the user gets one actionable access notice.
-    expect(NoticeMock).toHaveBeenCalledWith(expect.stringContaining('完全磁盘访问'), 0);
+  test('failed source read performs no backup or write', async () => {
+    await sync();
+    const before = new Map(env.files);
+    env.settings.backup = true;
+    vi.mocked(source.getDeletedAnnotations).mockRejectedValue(new Error('database locked'));
+    await expect(sync()).rejects.toThrow('database locked');
+    expect(env.files).toEqual(before);
+    expect(env.api.adapter.copy).not.toHaveBeenCalled();
   });
-
-  test('Should place the cover using a custom coverPathTemplate', async () => {
-    const customSettings = { ...mockSettings, coverPathTemplate: '附件/书封/{{{bookTitle}}} - {{{bookAuthor}}}' };
-    const vaultManagement = new VaultManagement(mockApp, customSettings);
-
-    vi.spyOn(annotationProcessing, 'aggregateBooksWithAnnotations').mockResolvedValue([{ ...aggregatedBooksAndAnnotations[0] }]);
-    vi.mocked(extractBookCover).mockResolvedValue({ data: new Uint8Array([1, 2, 3]), extension: 'png' });
-
-    const ensureFolderSpy = vi.spyOn(vaultManagement, 'ensureFolder');
-    const upsertBinarySpy = vi.spyOn(vaultManagement, 'upsertBinaryFile').mockResolvedValue();
-    const createBookFileSpy = vi.spyOn(vaultManagement, 'createBookFile');
-
-    await importHighlights(vaultManagement, customSettings);
-
-    // aggregatedBooksAndAnnotations[0] = iPhone User Guide by Apple Inc.; extension follows the real image (png)
-    expect(ensureFolderSpy).toHaveBeenCalledWith('附件/书封');
-    expect(upsertBinarySpy).toHaveBeenCalledWith('附件/书封/iPhone User Guide - Apple Inc..png', expect.any(ArrayBuffer));
-    expect(createBookFileSpy.mock.calls[0][1]).toContain('cover: "[[附件/书封/iPhone User Guide - Apple Inc..png]]"');
+  test('unreadable EPUB preserves old cover and completes highlights', async () => {
+    vi.mocked(epub.extractBookCover).mockResolvedValue({ data: new Uint8Array([1]), extension: 'jpg' });
+    await sync();
+    const cover = parseFrontmatter(env.files.get(mainPath()) as string).cover;
+    vi.mocked(epub.extractBookCover).mockRejectedValue(new Error('EPERM'));
+    annotations.push(annotation('loc3'));
+    const result = await sync();
+    expect(result.failures).toEqual([]);
+    expect(result.warnings).toHaveLength(1);
+    expect(parseFrontmatter(env.files.get(mainPath()) as string).cover).toBe(cover);
+    expect(await cards()).toHaveLength(3);
   });
+  test('single import uses same cover and preservation pipeline and limits scope', async () => {
+    books.push({ ...book, bookId: 'other' });
+    annotations.push({ ...annotation('loc3'), assetId: 'other' });
+    vi.mocked(epub.extractBookCover).mockResolvedValue({ data: new Uint8Array([1]), extension: 'jpg' });
+    await importHighlights(env.vault, env.settings, 'modify', book.bookId);
+    expect(await cards()).toHaveLength(2);
+    expect(epub.extractBookCover).toHaveBeenCalledTimes(1);
+    expect(parseFrontmatter(env.files.get(mainPath()) as string).cover).toBeTruthy();
+  });
+  test('malformed YAML never gets overwritten', async () => {
+    await sync();
+    const path = mainPath();
+    env.put(path, '---\ntitle: [broken\n---\nmy text');
+    await expect(sync()).rejects.toThrow();
+    expect(env.files.get(path)).toContain('my text');
+  });
+  test('custom card fields and extra sections survive reimport', async () => {
+    await sync();
+    const [card] = await cards();
+    env.put(card.path, patchProperties(env.files.get(card.path) as string, { custom: ['a', 'b'] }) + '\n## 我的扩展\n扩展内容\n');
+    await sync();
+    expect(parseFrontmatter(env.files.get(card.path) as string).custom).toEqual(['a', 'b']);
+    expect(env.files.get(card.path)).toContain('扩展内容');
+  });
+  test('incremental repository caches unchanged reads and observes local edits', async () => {
+    await sync();
+    await cards();
+    env.api.cachedRead.mockClear();
+    await cards();
+    expect(env.api.cachedRead).not.toHaveBeenCalled();
+    const [card] = await cards();
+    await setHighlightFavorite(env.app, card, true);
+    expect((await cards())[0].favorite).toBe(true);
+  });
+});
+
+test('nested local headings remain intact after reimport', async () => {
+  await sync();
+  const [card] = await cards();
+  const note = '我想到：\n## 实践\n> 保留引用\n第一步\n## 复盘\n第二步';
+  await setHighlightLocalNote(env.app, card, note);
+  await sync();
+  expect((await cards())[0].localNote).toBe(note);
+});
+test('a file edited during import is not overwritten', async () => {
+  await sync();
+  const path = mainPath();
+  const before = env.files.get(path) as string;
+  env.put(path, before + '\n刚刚输入的内容');
+  await expect(env.vault.upsertFile(path, 'replacement', before)).rejects.toThrow('文件在导入期间被修改');
+  expect(env.files.get(path)).toContain('刚刚输入的内容');
+});
+test('missing source chapter/context does not erase enriched content', async () => {
+  await sync();
+  annotations = annotations.map((a) => ({ ...a, chapter: '', contextualText: '' }));
+  await sync();
+  expect((await cards())[0].chapter).toBe('第一章');
+  expect(env.files.get((await cards())[0].path)).toContain('上下文');
+});
+test('an unreadable book does not prevent other books from importing', async () => {
+  books.push({ ...book, bookId: 'other' });
+  annotations.push({ ...annotation('loc3'), assetId: 'other' });
+  env.api.create.mockImplementationOnce(async () => {
+    throw new Error('disk failure');
+  });
+  const result = await sync();
+  expect(result.failures).toHaveLength(1);
+  expect(result.books).toBe(1);
+});
+
+test('source UUID keeps identity, notes and incoming links when range moves', async () => {
+  annotations[0].sourceAnnotationId = 'uuid-a';
+  await sync();
+  const original = (await cards())[0];
+  await setHighlightLocalNote(env.app, original, '## 独立思考\n> 必须保留');
+  env.put('引用.md', `[[${original.path.slice(0, -3)}|引用摘录]]`);
+  annotations[0].highlightLocation = 'loc50';
+  annotations[0].highlight = '扩大的划线';
+  expect((await sync()).failures).toEqual([]);
+  const updated = (await cards()).find((c) => c.annotationId === original.annotationId)!;
+  expect(updated.path).toBe(original.path);
+  expect(updated.highlightLocation).toBe('loc50');
+  expect(updated.localNote).toContain('必须保留');
+  expect(updated.sourceKey).toContain('#loc50');
+  expect(await cards()).toHaveLength(2);
+});
+
+test('source thought alone retains a removed card in the normal list', async () => {
+  await sync();
+  annotations = [annotations[1]];
+  deleted = [{ assetId: book.bookId, highlightLocation: 'loc1' }];
+  expect((await sync()).retained).toBe(1);
+  expect((await cards())[0]).toMatchObject({ archived: false, sourceRemoved: true, appleNote: 'Apple 想法' });
+});
+
+test('renumber in book order includes retained cards and is stable across unchanged imports', async () => {
+  annotations = [annotation('loc10'), annotation('loc2')];
+  await sync();
+  const original = (await cards()).find((c) => c.highlightLocation === 'loc10')!;
+  annotations.push(annotation('loc1'));
+  await sync();
+  expect((await cards()).map((c) => [c.highlightLocation, c.highlightIndex])).toEqual([['loc1', 1], ['loc2', 2], ['loc10', 3]]);
+  expect((await cards()).find((c) => c.highlightLocation === 'loc10')!.path).toBe(original.path);
+  env.api.modify.mockClear();
+  const result = await sync();
+  expect(result.updated).toBe(0);
+  expect(env.api.modify).not.toHaveBeenCalled();
+});
+
+test('metadata migrates out of prose without joining heading and body; custom properties stay', async () => {
+  await sync();
+  const p = mainPath();
+  const old = env.files.get(p) as string;
+  env.put(p, old + '\n## 我的读书笔记\n\n<!-- abkc:metadata {} -->\n这是我的正文。\n');
+  await sync();
+  expect(env.files.get(p)).toContain('## 我的读书笔记\n\n\n这是我的正文。');
+  expect(env.files.get(p)).not.toContain('<!-- abkc:metadata');
+  expect([...env.files.keys()].some((entry) => entry.includes('/.abkc-state/'))).toBe(true);
+});
+
+test('source thought updates do not silently fill local notes', async () => {
+  await sync();
+  annotations[0].note = '新的想法';
+  await sync();
+  expect((await cards())[0]).toMatchObject({ appleNote: '新的想法', localNote: '' });
+});
+
+test('renaming consolidates covers and cards, updates incoming links, leaves backups alone', async () => {
+  vi.mocked(epub.extractBookCover).mockResolvedValue({ data: new Uint8Array([1, 2]), extension: 'jpg' });
+  await sync();
+  const p = mainPath();
+  const c = (await cards())[0];
+  env.put('引用.md', `[[${c.path.slice(0, -3)}|我的引用]]`);
+  env.put('ibooks-highlights-bk-123/旧引用.md', `[[${c.path.slice(0, -3)}]]`);
+  env.put('ibooks-highlights/教父.md', env.files.get(p)!); env.files.delete(p);
+  expect((await sync()).failures).toEqual([]);
+  expect([...env.files.keys()].filter((entry) => entry.endsWith('.jpg'))).toEqual(['ibooks-highlights/covers/教父.jpg']);
+  expect(env.files.get('引用.md')).toContain('cards/教父/');
+  expect(env.files.get('ibooks-highlights-bk-123/旧引用.md')).toContain(c.path.slice(0, -3));
+});
+
+test('backup main links point into snapshot and state is copied', async () => {
+  await sync(); env.settings.backup = true;
+  await sync();
+  const backup = [...env.files.keys()].find((p) => /-bk-\d+\//.test(p) && p.endsWith('.md') && !p.includes('/cards/'))!;
+  const root = backup.split('/').slice(0, -1).join('/');
+  expect(env.files.get(backup)).toContain(`[[${root}/cards/`);
+  expect([...env.files.keys()].some((p) => p.startsWith(root + '/.abkc-state/'))).toBe(true);
+});
+
+test('new source UUID at old location does not inherit another annotation local work', async () => {
+  annotations[0].sourceAnnotationId = 'uuid-old';
+  await sync();
+  const c = (await cards())[0];
+  await setHighlightLocalNote(env.app, c, '属于旧批注');
+  annotations[0].sourceAnnotationId = 'uuid-new';
+  await sync();
+  const list = await cards();
+  expect(list).toHaveLength(3);
+  expect(list.find((v) => v.path === c.path)!.localNote).toBe('属于旧批注');
+  expect(list.filter((v) => v.path !== c.path).every((v) => !v.localNote)).toBe(true);
 });

@@ -1,4 +1,18 @@
-import Database from 'better-sqlite3';
+import { DatabaseSync } from 'node:sqlite';
+class Database extends DatabaseSync {
+  transaction(fn: (...args: any[]) => void) {
+    return (...args: any[]) => {
+      this.exec('BEGIN');
+      try {
+        fn(...args);
+        this.exec('COMMIT');
+      } catch (error) {
+        this.exec('ROLLBACK');
+        throw error;
+      }
+    };
+  }
+}
 import fs from 'fs';
 import path from 'path';
 import type { IAnnotation, IBook } from '../../src/types';
@@ -9,6 +23,7 @@ export const setPathsForTestEnvironment = () => {
   const testDbPath = path.join(process.cwd(), 'test/mocks/mockedDatabase.sqlite');
 
   process.env = {
+    ...process.env,
     TEST_DB_PATH: testDbPath,
     BOOKS_DB_PATH: testDbPath,
     ANNOTATIONS_DB_PATH: testDbPath,
@@ -16,7 +31,7 @@ export const setPathsForTestEnvironment = () => {
 };
 
 export const createTestDatabaseAndTables = () => {
-  const db = new Database(process.env.TEST_DB_PATH);
+  const db = new Database(process.env.TEST_DB_PATH!);
 
   db.exec(`CREATE TABLE IF NOT EXISTS ZBKLIBRARYASSET (
     ZASSETID TEXT,

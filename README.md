@@ -1,10 +1,33 @@
 # Apple Books Knowledge Cards
 
+## 1.9.1 验收反馈修复
+
+- 摘录按书中位置连续编号；本地身份与显示编号分离，读取来源批注 UUID，调整范围时优先复用原卡片。
+- 编辑窗口支持 `[[` 搜索、选择笔记，保存后由 Obsidian 建立双向链接；新增复制摘录链接，移除手填路径的关联按钮。
+- 来源想法与本地笔记享有同等删除保护；备份卡片墙读取对应快照并提供只读展示。
+- 主笔记改名后统一整理卡片与封面，迁移链接；内部同步比较记录移出正文，修复正文与标题被拼接的问题。
+- 阅读仪表盘集中提供导入一本、导入全部、已移除摘录和最近导入结果入口。
+
+本轮详细操作与验收步骤：[1.9.1 验收说明](docs/acceptance-1.9.1.md)。
+
+
 > 中文 | [English](#english)
 
 ---
 
 将 Apple Books 的阅读摘录，变成 Obsidian 里的结构化知识卡片。
+
+## 1.9.0 更新
+
+- 单本与批量导入使用同一流程，均支持封面与 EPUB 书目补全。
+- 备份改为复制快照；原笔记保留在原位置，收藏和本地笔记继续继承。
+- 明确删除的普通划线进入「已移除摘录」；带本地笔记、收藏、整理或关联记录的卡片保留，并提示来源已移除。
+- 整本书消失时保留原笔记；零摘录且无法可靠区分整本书移除的情况同样保留，并提示。
+- 书籍的人工属性、正文与现有文件名保留。已有自定义正文不会整篇重新套用模板；自动摘录目录和嵌入区域继续更新。
+- 相同文件不重写；卡片墙局部刷新，保留搜索、筛选、显示选项和随机样本。
+- 新增「标记已整理」「关联笔记」、已移除摘录恢复与清理，以及「查看最近导入结果」。
+
+测试步骤、边界与回退说明见 [1.9.0 验收清单](docs/acceptance-1.9.0.md)。
 
 ## 功能
 
@@ -80,14 +103,14 @@ book_id: 你的书籍ID
 
 ## 设置
 
-| 选项       | 说明                                           |
-| ---------- | ---------------------------------------------- |
-| 摘录文件夹 | 摘录文件存放位置，默认 `10 Sources/ibooks-dev` |
-| 启动时导入 | Obsidian 启动时自动同步摘录                    |
-| 导入前备份 | 每次导入前备份旧文件                           |
-| 排序方式   | 按创建时间、修改时间或书中位置排序             |
-| 内容模板   | 自定义书籍主笔记的 Handlebars 模板             |
-| 文件名模板 | 自定义生成的文件名格式                         |
+| 选项       | 说明                                       |
+| ---------- | ------------------------------------------ |
+| 摘录文件夹 | 摘录文件存放位置，默认 `ibooks-highlights` |
+| 启动时导入 | Obsidian 启动时自动同步摘录                |
+| 导入前备份 | 每次导入前备份旧文件                       |
+| 排序方式   | 按创建时间、修改时间或书中位置排序         |
+| 内容模板   | 自定义书籍主笔记的 Handlebars 模板         |
+| 文件名模板 | 自定义生成的文件名格式                     |
 
 ## 系统要求
 
@@ -185,14 +208,14 @@ Omit `book_id` to display all highlights.
 
 ## Settings
 
-| Option               | Description                                                        |
-| -------------------- | ------------------------------------------------------------------ |
-| Highlights folder    | Where highlight files are stored. Default: `10 Sources/ibooks-dev` |
-| Import on startup    | Automatically sync highlights when Obsidian launches               |
-| Backup before import | Back up existing files before each import                          |
-| Sort order           | Sort by creation date, modification date, or position in book      |
-| Content template     | Customize the book note format using Handlebars                    |
-| Filename template    | Customize how generated filenames are formatted                    |
+| Option               | Description                                                    |
+| -------------------- | -------------------------------------------------------------- |
+| Highlights folder    | Where highlight files are stored. Default: `ibooks-highlights` |
+| Import on startup    | Automatically sync highlights when Obsidian launches           |
+| Backup before import | Back up existing files before each import                      |
+| Sort order           | Sort by creation date, modification date, or position in book  |
+| Content template     | Customize the book note format using Handlebars                |
+| Filename template    | Customize how generated filenames are formatted                |
 
 ## Requirements
 

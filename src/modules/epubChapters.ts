@@ -1,3 +1,5 @@
+import { XMLParser } from 'fast-xml-parser';
+import { unzipSync } from 'fflate';
 import type { IAnnotation, IBookWithAnnotations } from '../types';
 import { requireNodeModule } from '../utils/nodeModules';
 
@@ -111,33 +113,8 @@ const createDirectoryReader = async (rootPath: string): Promise<EpubFileReader> 
 
 const createZipReader = async (rootPath: string): Promise<EpubFileReader> => {
   const fs = requireNodeModule<typeof import('fs/promises')>('fs/promises');
-  const { inflateRawSync } = requireNodeModule<typeof import('zlib')>('zlib');
   const buffer = await fs.readFile(rootPath);
-  const entries = new Map<string, Buffer>();
-  let offset = 0;
-
-  while (offset < buffer.length && buffer.readUInt32LE(offset) === 0x04034b50) {
-    const compressionMethod = buffer.readUInt16LE(offset + 8);
-    const compressedSize = buffer.readUInt32LE(offset + 18);
-    const uncompressedSize = buffer.readUInt32LE(offset + 22);
-    const fileNameLength = buffer.readUInt16LE(offset + 26);
-    const extraFieldLength = buffer.readUInt16LE(offset + 28);
-    const fileName = buffer.subarray(offset + 30, offset + 30 + fileNameLength).toString('utf8');
-    const dataStart = offset + 30 + fileNameLength + extraFieldLength;
-    const dataEnd = dataStart + compressedSize;
-    const compressedData = buffer.subarray(dataStart, dataEnd);
-
-    if (!fileName.endsWith('/')) {
-      if (compressionMethod === 0) {
-        entries.set(fileName, compressedData);
-      } else if (compressionMethod === 8) {
-        const data = inflateRawSync(compressedData, { finishFlush: 2 });
-        entries.set(fileName, uncompressedSize ? data.subarray(0, uncompressedSize) : data);
-      }
-    }
-
-    offset = dataEnd;
-  }
+  const entries = new Map<string, Uint8Array>(Object.entries(unzipSync(buffer)));
 
   return {
     readText: async (relativePath: string) => {
@@ -410,7 +387,7 @@ const getChapterHrefFromCfi = (location: string, spineHrefs: string[]): string =
   return spineIndex >= 0 ? spineHrefs[spineIndex] || '' : '';
 };
 
-const getBookEpubContext = async (book: IBookWithAnnotations): Promise<BookEpubContext | null> => {
+const loadBookEpubContext = async (book: IBookWithAnnotations): Promise<BookEpubContext | null> => {
   const reader = await createReader(book.bookPath || '');
 
   if (!reader) {
@@ -429,6 +406,73 @@ const getBookEpubContext = async (book: IBookWithAnnotations): Promise<BookEpubC
   const spineHrefs = getSpineHrefs(opf, manifestItems, opfDir);
 
   return { reader, opf, opfDir, manifestItems, spineHrefs };
+};
+
+const contextCache = new WeakMap<IBookWithAnnotations, Promise<BookEpubContext | null>>();
+const getBookEpubContext = (book: IBookWithAnnotations): Promise<BookEpubContext | null> => {
+  let context = contextCache.get(book);
+  if (!context) {
+    context = loadBookEpubContext(book);
+    contextCache.set(book, context);
+  }
+  return context;
+};
+
+export const parseBookMetadata = (opf: string): Partial<IBookWithAnnotations> => {
+  const parser = new XMLParser({ ignoreAttributes: false, removeNSPrefix: true, parseTagValue: false, processEntities: true });
+  const metadata = parser.parse(opf)?.package?.metadata || {};
+  const array = (v: unknown): any[] => (v == null ? [] : Array.isArray(v) ? v : [v]);
+  const text = (v: any): string => (typeof v === 'object' ? String(v?.['#text'] || '') : String(v || ''));
+  const contributors = [...array(metadata.creator), ...array(metadata.contributor)];
+  const role = (v: any): string =>
+    v?.['@_role'] || text(array(metadata.meta).find((m) => m?.['@_refines'] === `#${v?.['@_id']}` && m?.['@_property'] === 'role'));
+  const authors = array(metadata.creator)
+    .filter((v) => !role(v) || role(v) === 'aut')
+    .map(text)
+    .filter(Boolean);
+  const translators = contributors
+    .filter((v) => role(v) === 'trl')
+    .map(text)
+    .filter(Boolean);
+  const identifiers = array(metadata.identifier);
+  const isbn = identifiers
+    .map((v) => {
+      const value = text(v);
+      const isbnType = array(metadata.meta).some(
+        (m) => m?.['@_refines'] === `#${v?.['@_id']}` && m?.['@_property'] === 'identifier-type' && ['15', '02', 'ISBN'].includes(text(m)),
+      );
+      return isbnType || /isbn/i.test(v?.['@_scheme'] || '') || /^urn:isbn:/i.test(value) ? value.replace(/^urn:isbn:/i, '') : '';
+    })
+    .find((v) => /^(?:97[89][ -]?)?\d[\d -]{7,}[\dX]$/i.test(v));
+  const publishedDate = text(array(metadata.date).find((v) => !v?.['@_event'] || v['@_event'] === 'publication'));
+  return {
+    bookTitle: text(array(metadata.title)[0]),
+    bookLanguage: text(array(metadata.language)[0]),
+    authors,
+    translators,
+    publisher: text(array(metadata.publisher)[0]),
+    isbn,
+    publishedDate: /^\d{4}-\d{2}-\d{2}/.test(publishedDate) ? publishedDate.slice(0, 10) : undefined,
+  };
+};
+export const enrichBookMetadata = async (book: IBookWithAnnotations): Promise<void> => {
+  try {
+    const context = await getBookEpubContext(book);
+    if (!context) return;
+    const metadata = parseBookMetadata(context.opf);
+    Object.assign(book, {
+      authors: metadata.authors,
+      translators: metadata.translators,
+      publisher: metadata.publisher,
+      publishedDate: metadata.publishedDate,
+      isbn: metadata.isbn,
+      bookTitle: book.bookTitle || metadata.bookTitle || '',
+      bookLanguage: book.bookLanguage || metadata.bookLanguage || '',
+      bookAuthor: book.bookAuthor || metadata.authors?.join('、') || '',
+    });
+  } catch (error) {
+    console.warn('Apple Books: 无法补全书目属性，保留已有属性。', error);
+  }
 };
 
 const buildBookChapterMap = async (context: BookEpubContext, book: IBookWithAnnotations): Promise<Map<string, string>> => {

@@ -8,9 +8,16 @@ export interface IBook {
   bookFinishedDate: number | null;
   bookCoverUrl: string;
   bookPath?: string;
+  bookRemoved?: boolean;
+  authors?: string[];
+  publisher?: string;
+  translators?: string[];
+  publishedDate?: string;
+  isbn?: string;
 }
 
 export interface IAnnotation {
+  sourceAnnotationId?: string;
   assetId: string;
   chapter: string;
   contextualText: string;
@@ -50,6 +57,7 @@ export interface IBookHighlightsPluginSettings {
   keepMeSectionOpeningDelimiter: string;
   keepMeSectionClosingDelimiter: string;
   keepMeSectionData?: Record<string, string>;
+  lastImport?: ImportResult & { at: string };
 }
 
 export interface IHighlightCard {
@@ -71,6 +79,9 @@ export interface IHighlightCard {
   highlight: string;
   appleNote: string;
   localNote: string;
+  archived?: boolean;
+  sourceRemoved?: boolean;
+  restored?: boolean;
 }
 
 export interface IBookNoteSummary {
@@ -81,4 +92,15 @@ export interface IBookNoteSummary {
   annotationCount: number;
   status: string;
   cover: string;
+}
+
+export interface ImportResult {
+  created: number;
+  updated: number;
+  unchanged: number;
+  archived: number;
+  retained: number;
+  books: number;
+  failures: string[];
+  warnings: string[];
 }

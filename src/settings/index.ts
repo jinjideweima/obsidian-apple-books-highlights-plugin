@@ -1,19 +1,20 @@
+import { openDashboardView } from '../views/dashboardView';
 import { type App, Notice, PluginSettingTab, Setting } from 'obsidian';
 import type IBookHighlightsPlugin from '../../main';
 import { type IBookHighlightsPluginSettings, IHighlightsSortingCriterion } from '../types';
 
 export const defaultTemplate = `---
 type: book
-title: "{{{bookTitle}}}"
-author: "{{{bookAuthor}}}"
+title: {{{yaml bookTitle}}}
+author: {{{yaml bookAuthor}}}
 source: Apple Books
 book_id: "{{bookId}}"
 annotation_count: {{annotations.length}}
-status: "{{#if bookFinishedDate}}已读{{else}}在读{{/if}}"
+status: "{{#if bookFinishedDate}}已读{{else}}未标记{{/if}}"
 {{#if coverImagePath}}
-cover: "[[{{{coverImagePath}}}]]"
+cover: {{{yamlLink coverImagePath}}}
 {{else if bookCoverUrl}}
-cover: "{{{bookCoverUrl}}}"
+cover: {{{yaml bookCoverUrl}}}
 {{/if}}
 cssclasses:
   - wide-apple-book
@@ -36,6 +37,9 @@ tags:
 book_id: {{bookId}}
 theme: receipt
 \`\`\`
+
+## 我的读书笔记
+
 `;
 
 const allowedFilenameTemplateVariables = [
@@ -50,9 +54,9 @@ export const defaultPluginSettings: IBookHighlightsPluginSettings = {
   highlightsFolder: 'ibooks-highlights',
   backup: false,
   importOnStart: false,
-  highlightsSortingCriterion: 'creationDateOldToNew',
+  highlightsSortingCriterion: 'book',
   template: defaultTemplate,
-  filenameTemplate: `{{{${allowedFilenameTemplateVariables[0]}}}}`,
+  filenameTemplate: '{{{bookTitle}}} - {{{bookAuthor}}}',
   coverPathTemplate: '',
   libraryPagePath: '',
   keepMeSectionOpeningDelimiter: '%% keep-me %%',
@@ -72,6 +76,7 @@ export class IBookHighlightsSettingTab extends PluginSettingTab {
     const { containerEl } = this;
 
     containerEl.empty();
+    new Setting(containerEl).setName('阅读仪表盘').setDesc('导入书籍、查看摘录、回收区和最近导入结果。').addButton((b) => b.setButtonText('打开阅读仪表盘').onClick(() => { void openDashboardView(this.plugin); }));
 
     this.addHighlightsFolderSetting(containerEl);
     this.addImportOnStartSetting(containerEl);
@@ -151,20 +156,14 @@ export class IBookHighlightsSettingTab extends PluginSettingTab {
   addHighlightsSortingCriterionSetting(containerEl: HTMLElement): void {
     new Setting(containerEl)
       .setName('摘录排序方式')
-      .setDesc('导入时如何排序摘录。默认建议使用“按书中位置”。')
+      .setDesc('按书中位置排列；新增、移除和恢复时连续编号。筛选与随机展示保留编号。')
       .setClass('ibooks-highlights-sorting')
       .addDropdown((dropdown) => {
-        const options: Record<IHighlightsSortingCriterion, string> = {
-          creationDateOldToNew: '按创建时间：从旧到新',
-          creationDateNewToOld: '按创建时间：从新到旧',
-          lastModifiedDateOldToNew: '按修改时间：从旧到新',
-          lastModifiedDateNewToOld: '按修改时间：从新到旧',
-          book: '按书中位置',
-        };
+        const options = { book: '按书中位置' };
 
         dropdown
           .addOptions(options)
-          .setValue(this.plugin.settings.highlightsSortingCriterion)
+          .setValue('book')
           .onChange(async (value: IHighlightsSortingCriterion) => {
             this.plugin.settings.highlightsSortingCriterion = value;
 

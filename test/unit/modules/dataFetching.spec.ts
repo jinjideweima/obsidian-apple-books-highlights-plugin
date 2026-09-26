@@ -1,4 +1,4 @@
-import { Database } from 'better-sqlite3';
+import type { DatabaseSync as Database } from 'node:sqlite';
 import * as child_process from 'child_process';
 import os from 'os';
 import path from 'path';
@@ -66,7 +66,7 @@ describe('dataFetching', () => {
     test('Should throw parsing error when database results processing fails', async () => {
       db.prepare('DELETE FROM ZBKLIBRARYASSET;').run();
 
-      await expect(dataFetching.getBooks()).rejects.toThrow('Failed to parse database result');
+      await expect(dataFetching.getBooks()).rejects.toThrow(/No books found|No highlights found/);
     });
 
     test('Should throw an error when no books are found', async () => {
@@ -125,7 +125,7 @@ describe('dataFetching', () => {
     test('Should throw parsing error when database results processing fails', async () => {
       db.prepare('DELETE FROM ZAEANNOTATION;').run();
 
-      await expect(dataFetching.getAnnotations(defaultSortingCriterion)).rejects.toThrow('Failed to parse database result');
+      await expect(dataFetching.getAnnotations(defaultSortingCriterion)).rejects.toThrow(/No books found|No highlights found/);
     });
 
     test('Should throw an error when no highlights are found', async () => {

@@ -16,12 +16,14 @@ describe('quick-preview event', () => {
     plugin.manifest = { name: 'Apple Books Test Mock' } as any;
     plugin.app = {
       vault: {
+        adapter: { exists: vi.fn().mockResolvedValue(false) },
         getFolderByPath: vi.fn().mockReturnValue({}),
         getFileByPath: vi.fn(),
         createFolder: vi.fn(),
         create: vi.fn(),
       },
       workspace: {
+        iterateAllLeaves: vi.fn(),
         onLayoutReady: vi.fn().mockImplementation(async (cb: () => Promise<void> | void) => await cb()),
         on: vi.fn(),
       },
@@ -95,12 +97,14 @@ describe('onExternalSettingsChange', () => {
     plugin.manifest = { name: 'Apple Books Test Mock' } as any;
     plugin.app = {
       vault: {
+        adapter: { exists: vi.fn().mockResolvedValue(false) },
         getFolderByPath: vi.fn().mockReturnValue({}),
         getFileByPath: vi.fn(),
         createFolder: vi.fn(),
         create: vi.fn(),
       },
       workspace: {
+        iterateAllLeaves: vi.fn(),
         onLayoutReady: vi.fn().mockImplementation(async (cb: () => Promise<void> | void) => await cb()),
         on: vi.fn(),
       },

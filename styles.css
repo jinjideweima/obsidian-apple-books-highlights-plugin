@@ -1295,3 +1295,20 @@
     column-width: 250px;
   }
 }
+
+/* Source removal is informational; it never obscures the preserved highlight. */
+.abkc-source-status {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  line-height: 1.5;
+  padding: 8px 0;
+}
+.abkc-card-actions {
+  flex-wrap: wrap;
+}
+
+.abkc-link-suggestions { max-height: 220px; overflow: auto; display: flex; flex-direction: column; gap: 4px; }
+.abkc-link-suggestions button { text-align: left; white-space: normal; height: auto; padding: 8px; }
+.abkc-link-suggestions button[aria-selected="true"] { background: var(--background-modifier-hover); outline: 1px solid var(--interactive-accent); }
+.abkc-note-editor { min-height: 260px; width: 100%; font-family: var(--font-text); }
+.abkc-source-status { line-height: 1.5; }
