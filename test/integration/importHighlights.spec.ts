@@ -142,7 +142,9 @@ describe('safe incremental import', () => {
     expect([...env.files.keys()].filter((p) => p.endsWith('.md') && !p.includes('/cards/'))).toHaveLength(2);
   });
   test('explicit single deletion archives ordinary card, keeps file', async () => {
-    annotations.forEach((a) => { a.note = null; });
+    annotations.forEach((a) => {
+      a.note = null;
+    });
     await sync();
     const [card] = await cards();
     annotations = [annotation('loc2')];
@@ -166,7 +168,9 @@ describe('safe incremental import', () => {
     });
   });
   test('restored card stays restored on later sync; explicit cleanup only trashes archive', async () => {
-    annotations.forEach((a) => { a.note = null; });
+    annotations.forEach((a) => {
+      a.note = null;
+    });
     await sync();
     annotations = [annotation('loc2')];
     deleted = [{ assetId: book.bookId, highlightLocation: 'loc1' }];
@@ -330,7 +334,11 @@ test('renumber in book order includes retained cards and is stable across unchan
   const original = (await cards()).find((c) => c.highlightLocation === 'loc10')!;
   annotations.push(annotation('loc1'));
   await sync();
-  expect((await cards()).map((c) => [c.highlightLocation, c.highlightIndex])).toEqual([['loc1', 1], ['loc2', 2], ['loc10', 3]]);
+  expect((await cards()).map((c) => [c.highlightLocation, c.highlightIndex])).toEqual([
+    ['loc1', 1],
+    ['loc2', 2],
+    ['loc10', 3],
+  ]);
   expect((await cards()).find((c) => c.highlightLocation === 'loc10')!.path).toBe(original.path);
   env.api.modify.mockClear();
   const result = await sync();
@@ -363,7 +371,8 @@ test('renaming consolidates covers and cards, updates incoming links, leaves bac
   const c = (await cards())[0];
   env.put('引用.md', `[[${c.path.slice(0, -3)}|我的引用]]`);
   env.put('ibooks-highlights-bk-123/旧引用.md', `[[${c.path.slice(0, -3)}]]`);
-  env.put('ibooks-highlights/教父.md', env.files.get(p)!); env.files.delete(p);
+  env.put('ibooks-highlights/教父.md', env.files.get(p)!);
+  env.files.delete(p);
   expect((await sync()).failures).toEqual([]);
   expect([...env.files.keys()].filter((entry) => entry.endsWith('.jpg'))).toEqual(['ibooks-highlights/covers/教父.jpg']);
   expect(env.files.get('引用.md')).toContain('cards/教父/');
@@ -371,7 +380,8 @@ test('renaming consolidates covers and cards, updates incoming links, leaves bac
 });
 
 test('backup main links point into snapshot and state is copied', async () => {
-  await sync(); env.settings.backup = true;
+  await sync();
+  env.settings.backup = true;
   await sync();
   const backup = [...env.files.keys()].find((p) => /-bk-\d+\//.test(p) && p.endsWith('.md') && !p.includes('/cards/'))!;
   const root = backup.split('/').slice(0, -1).join('/');

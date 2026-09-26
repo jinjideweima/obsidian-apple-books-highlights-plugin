@@ -117,7 +117,9 @@ export const annotationsRequest = async (dbPath: string, sqlQuery: string): Prom
   return executeDbQuery<IAnnotation[]>(dbPath, sqlQuery);
 };
 
-export const getDeletedAnnotations = async (): Promise<Array<{ assetId: string; highlightLocation: string; sourceAnnotationId?: string }>> => {
+export const getDeletedAnnotations = async (): Promise<
+  Array<{ assetId: string; highlightLocation: string; sourceAnnotationId?: string }>
+> => {
   const columns = await executeDbQuery<Array<{ name: string }>>(getAnnotationsDbPath(), 'PRAGMA table_info(ZAEANNOTATION)');
   const uuidSelect = columns.some((c) => c.name === 'ZANNOTATIONUUID') ? 'ZANNOTATIONUUID as sourceAnnotationId,' : '';
   return executeDbQuery(

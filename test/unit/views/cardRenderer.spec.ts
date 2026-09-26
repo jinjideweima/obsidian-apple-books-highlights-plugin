@@ -105,7 +105,13 @@ test('embedded book scope remains constrained when toolbar filters change', asyn
 
 test('snapshot cards have no controls that change current or backup files', async () => {
   const env = await setup();
-  renderCardsBoard(env.app, env.container, await getHighlightCards(env.app, env.settings), {}, { onRefresh: async () => {}, readOnly: true, snapshotLabel: '备份快照 · 只读' });
+  renderCardsBoard(
+    env.app,
+    env.container,
+    await getHighlightCards(env.app, env.settings),
+    {},
+    { onRefresh: async () => {}, readOnly: true, snapshotLabel: '备份快照 · 只读' },
+  );
   const buttons = Array.from(env.container.querySelectorAll('.abkc-card-actions button'));
   expect(buttons).toHaveLength(0);
   expect(env.container.textContent).toContain('备份快照 · 只读');
@@ -114,11 +120,13 @@ test('snapshot cards have no controls that change current or backup files', asyn
 test('wiki link suggestions search by name, keep surrounding text and generate unique file paths', async () => {
   const { attachNoteLinks } = await import('../../../src/views/noteLinks');
   const env = memoryVault();
-  env.put('知识/阅读.md', ''); env.put('其他/阅读.md', '');
+  env.put('知识/阅读.md', '');
+  env.put('其他/阅读.md', '');
   const host = document.body.appendChild(document.createElement('div'));
   const textarea = host.appendChild(document.createElement('textarea'));
   const cleanup = attachNoteLinks(env.app, textarea, host, '卡片.md');
-  textarea.value = '我的想法：[[阅读'; textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+  textarea.value = '我的想法：[[阅读';
+  textarea.setSelectionRange(textarea.value.length, textarea.value.length);
   textarea.dispatchEvent(new Event('input'));
   expect(host.querySelectorAll('[role="option"]')).toHaveLength(2);
   textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));

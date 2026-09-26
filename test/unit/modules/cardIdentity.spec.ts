@@ -1,7 +1,7 @@
 import { test, expect } from 'vitest';
+import { relocateFile } from '../../../src/modules/bookResources';
 import { sourceUrl, compareLocations, cardLink } from '../../../src/utils/cardIdentity';
 import { pendingWikiLink } from '../../../src/views/noteLinks';
-import { relocateFile } from '../../../src/modules/bookResources';
 import { memoryVault } from '../../mocks/memoryVault';
 
 test('source navigation encodes unsafe URL/Markdown characters without changing CFI identity', () => {
@@ -20,13 +20,17 @@ test('wiki detection handles cursor in middle and does not replace closed links'
   expect(cardLink('a/b.md', '测试|摘录')).toBe('[[a/b|测试 摘录]]');
 });
 test('failed rename leaves incoming links untouched', async () => {
-  const env = memoryVault(); env.put('a.md', '内容'); env.put('ref.md', '[[a|引用]]');
+  const env = memoryVault();
+  env.put('a.md', '内容');
+  env.put('ref.md', '[[a|引用]]');
   env.api.rename.mockRejectedValueOnce(new Error('disk error'));
   await expect(relocateFile(env.app, env.api.getFileByPath('a.md'), 'b.md')).rejects.toThrow('disk error');
   expect(env.files.get('ref.md')).toBe('[[a|引用]]');
 });
 test('failed link rewrite rolls rename and earlier link writes back', async () => {
-  const env = memoryVault(); env.put('a.md', '内容'); env.put('ref.md', '[[a|引用]]');
+  const env = memoryVault();
+  env.put('a.md', '内容');
+  env.put('ref.md', '[[a|引用]]');
   env.api.process.mockRejectedValueOnce(new Error('locked'));
   await expect(relocateFile(env.app, env.api.getFileByPath('a.md'), 'b.md')).rejects.toThrow('locked');
   expect(env.files.has('a.md')).toBe(true);

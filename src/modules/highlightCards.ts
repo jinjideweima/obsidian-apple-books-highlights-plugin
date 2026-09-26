@@ -1,6 +1,6 @@
-import { sourceUrl, compareLocations, cardLink } from '../utils/cardIdentity';
 import type { IAnnotation, IBookWithAnnotations } from '../types';
 import type { VaultManagement } from './vaultManagement';
+import { sourceUrl, compareLocations, cardLink } from '../utils/cardIdentity';
 import { parseFrontmatter, patchProperties, splitMarkdown, writeMarkdown, extractSection, setSection } from '../utils/markdown';
 
 const simpleHash = (value: string): string => {
@@ -78,7 +78,8 @@ const buildCardContent = (book: IBookWithAnnotations, annotation: IAnnotation, h
   const existingLocalNote = extractSection(existingContent, '笔记');
   let localNote = existingLocalNote;
   const legacyLink = parseFrontmatter(existingContent).linked_atomic_note;
-  if (legacyLink && !localNote.includes(String(legacyLink))) localNote += `\n\n关联笔记：${String(legacyLink).startsWith('[[') ? legacyLink : `[[${legacyLink}]]`}`;
+  if (legacyLink && !localNote.includes(String(legacyLink)))
+    localNote += `\n\n关联笔记：${String(legacyLink).startsWith('[[') ? legacyLink : `[[${legacyLink}]]`}`;
   const localState = parseFrontmatter(existingContent);
   const highlightPreview = buildPreview(annotation.highlight);
   const favorite = typeof localState.favorite === 'boolean' ? localState.favorite : false;
@@ -176,16 +177,24 @@ export const importHighlightCards = async (
     const oldKey = uuidKey && existing.has(uuidKey) ? uuidKey : annotation.highlightLocation;
     // Only legacy cards may acquire a source UUID by matching their exact location.
     const old = existing.get(oldKey);
-    if (!old && !annotation.sourceAnnotationId && [...existing.values()].some((v) => parseFrontmatter(v.content).highlight_location === annotation.highlightLocation))
+    if (
+      !old &&
+      !annotation.sourceAnnotationId &&
+      [...existing.values()].some((v) => parseFrontmatter(v.content).highlight_location === annotation.highlightLocation)
+    )
       throw new Error('来源批注 ID 暂不可读，未猜测匹配旧卡片，请重试。');
     const path = old?.path || `${folder}/ibooks-${globalThis.crypto.randomUUID()}.md`;
-    const generated = buildCardContent(book, annotation, Number(parseFrontmatter(old?.content || '').highlight_index) || index + 1, old?.content);
+    const generated = buildCardContent(
+      book,
+      annotation,
+      Number(parseFrontmatter(old?.content || '').highlight_index) || index + 1,
+      old?.content,
+    );
     const fresh = splitMarkdown(generated);
     const previous = old ? splitMarkdown(old.content) : { properties: {}, body: '' };
     let body = fresh.body;
     if (old) {
       body = previous.body;
-
     }
     for (const heading of ['划线', '上下文', '想法', '笔记']) body = setSection(body, heading, extractSection(fresh.body, heading));
     body = setSection(
@@ -197,7 +206,8 @@ export const importHighlightCards = async (
     if (previous.properties.annotation_id) properties.annotation_id = previous.properties.annotation_id;
     if (!old) properties.annotation_id = path.split('/').pop()!.replace(/\.md$/, '');
     properties.card_id = previous.properties.card_id || properties.annotation_id;
-    if (!annotation.sourceAnnotationId && previous.properties.source_annotation_id) properties.source_annotation_id = previous.properties.source_annotation_id;
+    if (!annotation.sourceAnnotationId && previous.properties.source_annotation_id)
+      properties.source_annotation_id = previous.properties.source_annotation_id;
     // Preserve unknown/custom properties, tags and explicitly stored links.
     properties.tags = Array.from(
       new Set([...(Array.isArray(previous.properties.tags) ? previous.properties.tags : []), 'book-highlight', 'apple-books']),
@@ -216,7 +226,8 @@ export const importHighlightCards = async (
         (match) => !['划线', '上下文', '想法', '我的想法', '笔记', '来源'].includes(match[1].trim()),
       ) ||
       extractSection(old.content, '笔记') ||
-      extractSection(old.content, '想法') || extractSection(old.content, '我的想法') ||
+      extractSection(old.content, '想法') ||
+      extractSection(old.content, '我的想法') ||
       fm.favorite === true ||
       fm.reviewed === true ||
       fm.linked_atomic_note ||
@@ -237,14 +248,21 @@ export const importHighlightCards = async (
     const fm = parseFrontmatter(content);
     if (String(fm.book_id) === book.bookId) all.push({ path, content, fm });
   }
-  all.sort((a, b) => compareLocations(String(a.fm.highlight_location || ''), String(b.fm.highlight_location || '')) || String(a.fm.card_id || a.fm.annotation_id).localeCompare(String(b.fm.card_id || b.fm.annotation_id)));
-  let normal = 0, archived = 0;
+  all.sort(
+    (a, b) =>
+      compareLocations(String(a.fm.highlight_location || ''), String(b.fm.highlight_location || '')) ||
+      String(a.fm.card_id || a.fm.annotation_id).localeCompare(String(b.fm.card_id || b.fm.annotation_id)),
+  );
+  let normal = 0,
+    archived = 0;
   for (const card of all) {
     const n = card.fm.archived === true ? ++archived : ++normal;
     const next = patchProperties(card.content.replace(/^# 摘录 \d+/m, `# 摘录 ${n}`), { highlight_index: n });
     if (next !== card.content) await vault.upsertFile(card.path, next, card.content);
   }
-  result.created = 0; result.updated = 0; result.unchanged = 0;
+  result.created = 0;
+  result.updated = 0;
+  result.unchanged = 0;
   for (const card of all) {
     const current = await vault.readFileIfExists(card.path);
     if (!before.has(card.path)) result.created++;

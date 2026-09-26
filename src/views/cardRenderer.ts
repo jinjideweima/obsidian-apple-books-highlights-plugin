@@ -1,8 +1,8 @@
-import { attachNoteLinks } from './noteLinks';
-import { cardLink } from '../utils/cardIdentity';
 import { Component, MarkdownRenderer, Modal, Notice, Platform, Setting, type App } from 'obsidian';
 import type { IHighlightCard } from '../types';
 import { setHighlightFavorite, setHighlightLocalNote, setHighlightProperties, deleteArchivedCard } from '../modules/highlightRepository';
+import { cardLink } from '../utils/cardIdentity';
+import { attachNoteLinks } from './noteLinks';
 
 interface BoardFilters {
   bookId?: string;
@@ -51,7 +51,10 @@ interface RenderOptions {
 const DEFAULT_MAX_CHARS = 500;
 
 const noteComponents = new Map<HTMLElement, Component>();
-const releaseCard = (el: HTMLElement) => { noteComponents.get(el)?.unload(); noteComponents.delete(el); };
+const releaseCard = (el: HTMLElement) => {
+  noteComponents.get(el)?.unload();
+  noteComponents.delete(el);
+};
 
 const boundTocDocuments = new WeakSet<Document>();
 const boundTocCleanups: Array<() => void> = [];
@@ -211,8 +214,7 @@ const bindNoteToc = (container: HTMLElement): void => {
 
     const scope = getTocScope(link);
     if (scope.querySelectorAll('.abkc-board').length !== 1) return;
-    const target =
-      scope.querySelector<HTMLElement>(`.abkc-root [data-highlight-index="${CSS.escape(highlightIndex)}"]`);
+    const target = scope.querySelector<HTMLElement>(`.abkc-root [data-highlight-index="${CSS.escape(highlightIndex)}"]`);
 
     if (!target) {
       return;
@@ -580,7 +582,9 @@ const renderCard = (app: App, board: HTMLElement, card: IHighlightCard, context:
   if (options.showLocalNote && card.localNote.trim()) {
     const localNoteEl = cardEl.createDiv({ cls: 'abkc-card-note abkc-card-localnote' });
     localNoteEl.createDiv({ text: '我的笔记', cls: 'abkc-card-label' });
-    const component = new Component(); component.load(); noteComponents.set(cardEl, component);
+    const component = new Component();
+    component.load();
+    noteComponents.set(cardEl, component);
     void MarkdownRenderer.render(app, card.localNote, localNoteEl.createDiv(), card.path, component);
   }
 
@@ -736,7 +740,10 @@ export const renderCardsBoard = (
       const old = nodes.get(card.path);
       if (old?.fingerprint !== fingerprint) {
         const element = renderCard(app, board, card, context, renderOptions);
-        if (old) { releaseCard(old.element); old.element.replaceWith(element); }
+        if (old) {
+          releaseCard(old.element);
+          old.element.replaceWith(element);
+        }
         nodes.set(card.path, { element, fingerprint });
       }
     }

@@ -1,8 +1,8 @@
-import { showImportResult } from '../modals/importResult';
-import { IBookHighlightsPluginSearchModal } from '../modals/searchSuggestions';
 import { type App, ItemView, Platform, setIcon, WorkspaceLeaf } from 'obsidian';
 import type IBookHighlightsPlugin from '../../main';
 import type { IBookNoteSummary, IHighlightCard } from '../types';
+import { showImportResult } from '../modals/importResult';
+import { IBookHighlightsPluginSearchModal } from '../modals/searchSuggestions';
 import { getBookSummaries, getHighlightCards } from '../modules/highlightRepository';
 import { watchVault } from '../utils/watchVault';
 import { openCardsView } from './cardsView';
@@ -207,10 +207,17 @@ const renderDashboardContent = async (
       await openHighlightsFolder(app, plugin);
     });
 
-    const action = (label: string, run: () => void | Promise<unknown>) => heroActions.createEl('button', { text: label, cls: 'abkc-dashboard-secondary' }).addEventListener('click', () => { void run(); });
+    const action = (label: string, run: () => void | Promise<unknown>) =>
+      heroActions.createEl('button', { text: label, cls: 'abkc-dashboard-secondary' }).addEventListener('click', () => {
+        void run();
+      });
     if (!Platform.isMobile) {
       action('导入一本', () => new IBookHighlightsPluginSearchModal(app, plugin).open());
-      action('导入全部', async () => { const { backupAndImport } = await import('../utils/backupAndImportFlow'); await backupAndImport(plugin, plugin.settings); await onRefresh(); });
+      action('导入全部', async () => {
+        const { backupAndImport } = await import('../utils/backupAndImportFlow');
+        await backupAndImport(plugin, plugin.settings);
+        await onRefresh();
+      });
     }
     action('已移除摘录', () => openCardsView(plugin, { archived: true }));
     action('最近导入结果', () => showImportResult(plugin));

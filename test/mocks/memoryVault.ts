@@ -50,14 +50,27 @@ export const memoryVault = () => {
     readBinary: vi.fn(async (f: any) => files.get(f.path)),
     createBinary: vi.fn(async (p: string, b: ArrayBuffer) => put(p, b)),
     modifyBinary: vi.fn(async (f: any, b: ArrayBuffer) => put(f.path, b)),
-    delete: vi.fn(async (f: any) => { files.delete(f.path); folders.delete(f.path); }),
-    rename: vi.fn(async (f: any, path: string) => { const value = files.get(f.path)!; files.delete(f.path); put(path, value); f.path = path; f.name = path.split('/').pop(); }),
+    delete: vi.fn(async (f: any) => {
+      files.delete(f.path);
+      folders.delete(f.path);
+    }),
+    rename: vi.fn(async (f: any, path: string) => {
+      const value = files.get(f.path)!;
+      files.delete(f.path);
+      put(path, value);
+      f.path = path;
+      f.name = path.split('/').pop();
+    }),
     adapter: {
-      rmdir: async (path: string) => { folders.delete(path); },
+      rmdir: async (path: string) => {
+        folders.delete(path);
+      },
       exists: async (path: string) => files.has(path) || folders.has(path),
       read: async (path: string) => files.get(path),
       write: async (path: string, text: string) => put(path, text),
-      mkdir: async (path: string) => { folders.add(path); },
+      mkdir: async (path: string) => {
+        folders.add(path);
+      },
       list: async (p: string) => ({
         files: [...files.keys()].filter((k) => k.startsWith(p + '/') && !k.slice(p.length + 1).includes('/')),
         folders: [...folders].filter((k) => k.startsWith(p + '/') && !k.slice(p.length + 1).includes('/')),

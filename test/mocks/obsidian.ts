@@ -356,5 +356,12 @@ export class MarkdownRenderChild {
   register() {}
 }
 
-export class Component { load() {} unload() {} }
-export const MarkdownRenderer = { render: async (_app: any, text: string, el: any) => { el.textContent = text; } };
+export class Component {
+  load() {}
+  unload() {}
+}
+export const MarkdownRenderer = {
+  render: async (_app: any, text: string, el: any) => {
+    el.textContent = text;
+  },
+};

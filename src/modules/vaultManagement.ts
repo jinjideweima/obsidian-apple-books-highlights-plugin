@@ -1,7 +1,7 @@
-import { consolidateCards, relocateFile, redirectLinks } from './bookResources';
 import type { App, Vault, TFolder, TFile } from 'obsidian';
 import type { IBookHighlightsPluginSettings } from '../types';
 import { parseFrontmatter, safeRelativePath } from '../utils/markdown';
+import { consolidateCards, relocateFile, redirectLinks } from './bookResources';
 
 const joinPath = (...parts: string[]): string => parts.join('/').replace(/\/+/g, '/');
 
@@ -17,13 +17,18 @@ export class VaultManagement {
     this.settings = settings;
   }
 
-  getApp(): App { return this.app; }
+  getApp(): App {
+    return this.app;
+  }
 
   async readBookState(bookId: string): Promise<Record<string, unknown>> {
     const path = `${this.getHighlightsFolder()}/.abkc-state/${encodeURIComponent(bookId)}.json`;
     if (!(await this.vault.adapter.exists(path))) return {};
-    try { return JSON.parse(await this.vault.adapter.read(path)); }
-    catch { throw new Error('书籍同步记录无法读取，已停止该书导入：' + path); }
+    try {
+      return JSON.parse(await this.vault.adapter.read(path));
+    } catch {
+      throw new Error('书籍同步记录无法读取，已停止该书导入：' + path);
+    }
   }
 
   async writeBookState(bookId: string, state: Record<string, unknown>): Promise<void> {
@@ -31,12 +36,18 @@ export class VaultManagement {
     if (!(await this.vault.adapter.exists(dir))) await this.vault.adapter.mkdir(dir);
     const path = `${dir}/${encodeURIComponent(bookId)}.json`;
     const text = JSON.stringify(state, null, 2);
-    if (await this.vault.adapter.exists(path) && await this.vault.adapter.read(path) === text) return;
+    if ((await this.vault.adapter.exists(path)) && (await this.vault.adapter.read(path)) === text) return;
     await this.vault.adapter.write(path, text);
   }
 
   async organizeCards(bookId: string, filename: string): Promise<string[]> {
-    const result = await consolidateCards(this.app, this.getCardFiles(bookId), bookId, `${this.getHighlightsFolder()}/cards/${filename}`, (p) => this.ensureFolder(p));
+    const result = await consolidateCards(
+      this.app,
+      this.getCardFiles(bookId),
+      bookId,
+      `${this.getHighlightsFolder()}/cards/${filename}`,
+      (p) => this.ensureFolder(p),
+    );
     // Obsidian updates TFile paths on rename; retain the per-book index for this import.
     return result;
   }

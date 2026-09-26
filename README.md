@@ -10,7 +10,6 @@
 
 本轮详细操作与验收步骤：[1.9.1 验收说明](docs/acceptance-1.9.1.md)。
 
-
 > 中文 | [English](#english)
 
 ---

@@ -1,6 +1,6 @@
-import { showImportResult } from './src/modals/importResult';
 import { Notice, Platform, Plugin, MarkdownRenderChild } from 'obsidian';
 import type { IBookHighlightsPluginSettings } from './src/types';
+import { showImportResult } from './src/modals/importResult';
 import { getHighlightCards } from './src/modules/highlightRepository';
 import { VaultManagement } from './src/modules/vaultManagement';
 import { defaultPluginSettings, IBookHighlightsSettingTab } from './src/settings';
@@ -202,8 +202,23 @@ function registerCardsCodeBlock(plugin: IBookHighlightsPlugin) {
     const bookId = source.match(/book_id:\s*(.+)/)?.[1]?.trim();
     const render = async () => {
       try {
-        const cards = await getHighlightCards(plugin.app, backupRoot ? { ...plugin.settings, highlightsFolder: backupRoot } : plugin.settings);
-        renderCardsBoard(plugin.app, el, cards, { bookId }, { onRefresh: render, readOnly: Boolean(backupRoot), snapshotLabel: backupRoot ? `备份快照 · ${new Date(Number(backupRoot.match(/-bk-(\d+)$/)?.[1])).toLocaleString()} · 只读` : undefined });
+        const cards = await getHighlightCards(
+          plugin.app,
+          backupRoot ? { ...plugin.settings, highlightsFolder: backupRoot } : plugin.settings,
+        );
+        renderCardsBoard(
+          plugin.app,
+          el,
+          cards,
+          { bookId },
+          {
+            onRefresh: render,
+            readOnly: Boolean(backupRoot),
+            snapshotLabel: backupRoot
+              ? `备份快照 · ${new Date(Number(backupRoot.match(/-bk-(\d+)$/)?.[1])).toLocaleString()} · 只读`
+              : undefined,
+          },
+        );
       } catch (error) {
         el.empty();
         el.createDiv({
@@ -224,7 +239,10 @@ function registerCardsCodeBlock(plugin: IBookHighlightsPlugin) {
 
 function registerDashboardCodeBlock(plugin: IBookHighlightsPlugin) {
   plugin.registerMarkdownCodeBlockProcessor('apple-books-dashboard', async (_source, el, ctx) => {
-    if (/-bk-\d+\//.test(ctx.sourcePath)) { el.createDiv({ text: '历史备份：请打开本备份中的书籍页面查看只读卡片。' }); return; }
+    if (/-bk-\d+\//.test(ctx.sourcePath)) {
+      el.createDiv({ text: '历史备份：请打开本备份中的书籍页面查看只读卡片。' });
+      return;
+    }
     const child = new MarkdownRenderChild(el);
     ctx.addChild(child);
     watchVault(plugin.app, child, () => renderDashboard(plugin, el));

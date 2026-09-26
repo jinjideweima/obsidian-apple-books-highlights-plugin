@@ -35,7 +35,9 @@ export class CardsView extends ItemView {
     return 'layout-dashboard';
   }
 
-  async onClose(): Promise<void> { cleanupCardsBoard(this.contentEl); }
+  async onClose(): Promise<void> {
+    cleanupCardsBoard(this.contentEl);
+  }
 
   async onOpen(): Promise<void> {
     watchVault(this.app, this, () => this.render());

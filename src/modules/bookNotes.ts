@@ -5,7 +5,13 @@ import { calculateAppleDate } from './templateProcessing';
 const date = (value: number | null): string | undefined =>
   value && Number.isFinite(value) ? calculateAppleDate(value).format('YYYY-MM-DDTHH:mm:ssZ') : undefined;
 const equal = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
-export const mergeBookNote = (existing: string, generated: string, book: IBookWithAnnotations, savedBaseline: Properties = {}, onBaseline?: (baseline: Properties) => void): string => {
+export const mergeBookNote = (
+  existing: string,
+  generated: string,
+  book: IBookWithAnnotations,
+  savedBaseline: Properties = {},
+  onBaseline?: (baseline: Properties) => void,
+): string => {
   const old = splitMarkdown(existing);
   const fresh = splitMarkdown(generated);
   let baseline: Properties = savedBaseline;

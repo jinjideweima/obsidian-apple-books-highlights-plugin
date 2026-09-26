@@ -1,6 +1,6 @@
-import { compareLocations } from '../utils/cardIdentity';
 import type { App, TFile } from 'obsidian';
 import type { IBookHighlightsPluginSettings, IBookNoteSummary, IHighlightCard } from '../types';
+import { compareLocations } from '../utils/cardIdentity';
 import { parseFrontmatter, patchProperties, extractSection, setSection, textValue } from '../utils/markdown';
 
 const getCardFile = (app: App, path: string): TFile => {
@@ -61,7 +61,12 @@ export const getHighlightCards = async (app: App, settings: IBookHighlightsPlugi
     }),
   );
 
-  cards.sort((a, b) => a.bookId.localeCompare(b.bookId) || compareLocations(a.highlightLocation, b.highlightLocation) || a.annotationId.localeCompare(b.annotationId));
+  cards.sort(
+    (a, b) =>
+      a.bookId.localeCompare(b.bookId) ||
+      compareLocations(a.highlightLocation, b.highlightLocation) ||
+      a.annotationId.localeCompare(b.annotationId),
+  );
   const counters = new Map<string, number>();
   return cards.map((card) => {
     const key = `${card.bookId}:${Boolean(card.archived)}`;
@@ -107,7 +112,8 @@ export const setHighlightLocalNote = async (app: App, card: IHighlightCard, note
   const file = getCardFile(app, card.path);
   cardCaches.get(app)?.delete(file.path);
   await app.vault.process(file, (content) => {
-    if (expected !== undefined && extractSection(content, '笔记') !== expected) throw new Error('笔记在编辑期间已变化，请重新打开后合并内容。');
+    if (expected !== undefined && extractSection(content, '笔记') !== expected)
+      throw new Error('笔记在编辑期间已变化，请重新打开后合并内容。');
     return setSection(content, '笔记', note);
   });
 };

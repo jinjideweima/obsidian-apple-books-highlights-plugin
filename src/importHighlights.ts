@@ -5,9 +5,9 @@ import { mergeBookNote } from './modules/bookNotes';
 import { getBooks, getAnnotations, getDeletedAnnotations } from './modules/dataFetching';
 import { extractBookCover, inferMissingChapters, enrichBookMetadata } from './modules/epubChapters';
 import { importHighlightCards } from './modules/highlightCards';
+import { getHighlightCards } from './modules/highlightRepository';
 import { compileTemplate } from './modules/templateProcessing';
 import { compareLocations, cardLink } from './utils/cardIdentity';
-import { getHighlightCards } from './modules/highlightRepository';
 import { safeRelativePath, parseFrontmatter, textValue, filenameValue } from './utils/markdown';
 
 export const importHighlights = async (
@@ -17,11 +17,7 @@ export const importHighlights = async (
   selectedBookId?: string,
 ): Promise<ImportResult> => {
   // Read the complete source before any backup/write. A failed query cannot trigger cleanup.
-  const [books, annotations, deleted] = await Promise.all([
-    getBooks(true),
-    getAnnotations('book', true),
-    getDeletedAnnotations(),
-  ]);
+  const [books, annotations, deleted] = await Promise.all([getBooks(true), getAnnotations('book', true), getDeletedAnnotations()]);
   const result: ImportResult = { created: 0, updated: 0, unchanged: 0, archived: 0, retained: 0, books: 0, failures: [], warnings: [] };
   await vault.prepareImport();
   const map = new Map();
@@ -80,8 +76,16 @@ export const importHighlights = async (
         return null;
       });
       const oldCover = String(oldProperties.cover || '').match(/^\[\[([^|\]]+)/)?.[1];
-      const baselineCover = String(baseline.cover || existing.match(/<!-- abkc:metadata ([\s\S]*?) -->/)?.[1] && JSON.parse(existing.match(/<!-- abkc:metadata ([\s\S]*?) -->/)![1]).cover || '');
-      const managedCover = !coverTemplate && oldCover?.startsWith(`${vault.getHighlightsFolder()}/covers/`) && (!baselineCover || baselineCover === oldProperties.cover);
+      const baselineCover = String(
+        baseline.cover ||
+          (existing.match(/<!-- abkc:metadata ([\s\S]*?) -->/)?.[1] &&
+            JSON.parse(existing.match(/<!-- abkc:metadata ([\s\S]*?) -->/)![1]).cover) ||
+          '',
+      );
+      const managedCover =
+        !coverTemplate &&
+        oldCover?.startsWith(`${vault.getHighlightsFolder()}/covers/`) &&
+        (!baselineCover || baselineCover === oldProperties.cover);
       if (managedCover && oldCover) {
         const extension = oldCover.split('.').pop();
         const target = `${vault.getHighlightsFolder()}/covers/${filename}.${extension}`;
@@ -106,18 +110,22 @@ export const importHighlights = async (
       const currentCover = String(parseFrontmatter(existing).cover || '').match(/^\[\[([^|\]]+)/)?.[1];
       if (cover) {
         const coverPath = safeRelativePath(
-          currentCover || `${coverTemplate ? coverTemplate(namingData) : `${vault.getHighlightsFolder()}/covers/${filename}`}.${cover.extension}`,
+          currentCover ||
+            `${coverTemplate ? coverTemplate(namingData) : `${vault.getHighlightsFolder()}/covers/${filename}`}.${cover.extension}`,
         );
         await vault.ensureFolder(coverPath.slice(0, coverPath.lastIndexOf('/')));
-        if (!currentCover) await vault.upsertBinaryFile(
-          coverPath,
-          cover.data.buffer.slice(cover.data.byteOffset, cover.data.byteOffset + cover.data.byteLength) as ArrayBuffer,
-        );
+        if (!currentCover)
+          await vault.upsertBinaryFile(
+            coverPath,
+            cover.data.buffer.slice(cover.data.byteOffset, cover.data.byteOffset + cover.data.byteLength) as ArrayBuffer,
+          );
         book.coverImagePath = coverPath;
       }
       const generated = template(book);
       let nextBaseline = baseline;
-      let content = mergeBookNote(existing, generated, book, baseline, (value) => { nextBaseline = value; });
+      let content = mergeBookNote(existing, generated, book, baseline, (value) => {
+        nextBaseline = value;
+      });
       const mergedProperties = parseFrontmatter(content);
       const displayBook = { ...book, bookTitle: textValue(mergedProperties.title), bookAuthor: textValue(mergedProperties.author) };
       const cards = await importHighlightCards(
@@ -125,10 +133,16 @@ export const importHighlights = async (
         displayBook,
         filename,
         new Set(deleted.filter((a) => a.assetId === book.bookId).map((a) => a.highlightLocation)),
-        new Set(deleted.filter((a) => a.assetId === book.bookId).map((a) => a.sourceAnnotationId || '').filter(Boolean)),
+        new Set(
+          deleted
+            .filter((a) => a.assetId === book.bookId)
+            .map((a) => a.sourceAnnotationId || '')
+            .filter(Boolean),
+        ),
       );
       for (const key of ['created', 'updated', 'unchanged', 'archived', 'retained'] as const) result[key] += cards[key];
-      const currentCards = (await getHighlightCards(vault.getApp(), settings)).filter((c) => c.bookId === book.bookId && !c.archived)
+      const currentCards = (await getHighlightCards(vault.getApp(), settings))
+        .filter((c) => c.bookId === book.bookId && !c.archived)
         .sort((a, b) => compareLocations(a.highlightLocation, b.highlightLocation));
       const toc = `<details class="abkc-note-toc-details">\n<summary>摘录目录</summary>\n\n${currentCards.map((c) => cardLink(c.path, `摘录 ${c.highlightIndex}`)).join(' · ')}\n\n</details>`;
       content = content.replace(/<details class="abkc-note-toc-details">[\s\S]*?<\/details>/g, () => toc);

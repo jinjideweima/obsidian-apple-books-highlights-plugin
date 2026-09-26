@@ -8,14 +8,15 @@ export const sourceUrl = (bookId: string, location: string): string => {
 
 export const compareLocations = (a: string, b: string): number => {
   const tokens = (s: string) => s.replace(/\[(?:\^.|[^\]])*\]/g, '').match(/\d+|[^\d]+/g) || [];
-  const aa = tokens(a), bb = tokens(b);
+  const aa = tokens(a),
+    bb = tokens(b);
   for (let i = 0; i < Math.min(aa.length, bb.length); i++) {
-    const x = aa[i], y = bb[i];
+    const x = aa[i],
+      y = bb[i];
     const diff = /^\d+$/.test(x) && /^\d+$/.test(y) ? Number(x) - Number(y) : x.localeCompare(y);
     if (diff) return diff;
   }
   return aa.length - bb.length;
 };
 
-export const cardLink = (path: string, label: string): string =>
-  `[[${path.replace(/\.md$/, '')}|${label.replace(/[[\]|\r\n]/g, ' ')}]]`;
+export const cardLink = (path: string, label: string): string => `[[${path.replace(/\.md$/, '')}|${label.replace(/[[\]|\r\n]/g, ' ')}]]`;

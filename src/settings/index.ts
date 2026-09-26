@@ -1,7 +1,7 @@
-import { openDashboardView } from '../views/dashboardView';
 import { type App, Notice, PluginSettingTab, Setting } from 'obsidian';
 import type IBookHighlightsPlugin from '../../main';
 import { type IBookHighlightsPluginSettings, IHighlightsSortingCriterion } from '../types';
+import { openDashboardView } from '../views/dashboardView';
 
 export const defaultTemplate = `---
 type: book
@@ -76,7 +76,14 @@ export class IBookHighlightsSettingTab extends PluginSettingTab {
     const { containerEl } = this;
 
     containerEl.empty();
-    new Setting(containerEl).setName('阅读仪表盘').setDesc('导入书籍、查看摘录、回收区和最近导入结果。').addButton((b) => b.setButtonText('打开阅读仪表盘').onClick(() => { void openDashboardView(this.plugin); }));
+    new Setting(containerEl)
+      .setName('阅读仪表盘')
+      .setDesc('导入书籍、查看摘录、回收区和最近导入结果。')
+      .addButton((b) =>
+        b.setButtonText('打开阅读仪表盘').onClick(() => {
+          void openDashboardView(this.plugin);
+        }),
+      );
 
     this.addHighlightsFolderSetting(containerEl);
     this.addImportOnStartSetting(containerEl);
