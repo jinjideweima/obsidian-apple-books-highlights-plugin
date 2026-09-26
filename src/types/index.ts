@@ -47,6 +47,8 @@ export type IHighlightsSortingCriterion =
 export interface IBookHighlightsPluginSettings {
   highlightsFolder: string;
   backup: boolean;
+  // Number of newest backup snapshots to keep; 0 keeps all of them.
+  backupRetention?: number;
   importOnStart: boolean;
   template: string;
   filenameTemplate: string;

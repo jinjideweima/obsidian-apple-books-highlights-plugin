@@ -53,6 +53,7 @@ const allowedFilenameTemplateVariables = [
 export const defaultPluginSettings: IBookHighlightsPluginSettings = {
   highlightsFolder: 'ibooks-highlights',
   backup: false,
+  backupRetention: 0,
   importOnStart: false,
   template: defaultTemplate,
   filenameTemplate: '{{{bookTitle}}} - {{{bookAuthor}}}',
@@ -84,6 +85,7 @@ export class IBookHighlightsSettingTab extends PluginSettingTab {
     this.addHighlightsFolderSetting(containerEl);
     this.addImportOnStartSetting(containerEl);
     this.addBackupSetting(containerEl);
+    this.addBackupRetentionSetting(containerEl);
     this.addTemplateSetting(containerEl);
     this.addFilenameTemplateSetting(containerEl);
     this.addCoverPathTemplateSetting(containerEl);
@@ -134,11 +136,9 @@ export class IBookHighlightsSettingTab extends PluginSettingTab {
       .setName('导入前备份')
       .setDesc(
         createFragment((el) => {
-          el.appendText('导入前备份已有摘录。');
+          el.appendText('每次导入前把整个导入目录复制为一份快照。');
           el.createEl('br');
           el.appendText('- 文件夹格式：<导入目录>-bk-<时间戳>');
-          el.createEl('br');
-          el.appendText('- 文件格式：<书籍文件>-bk-<时间戳>');
         }),
       )
       .addToggle((toggle) => {
@@ -151,6 +151,22 @@ export class IBookHighlightsSettingTab extends PluginSettingTab {
 
           await this.plugin.saveSettings();
         });
+      });
+  }
+
+  addBackupRetentionSetting(containerEl: HTMLElement): void {
+    new Setting(containerEl)
+      .setName('备份保留份数')
+      .setDesc('只保留最新的几份导入前备份。更早的快照按 Obsidian「删除文件」的设置移走（默认进入回收站）；只处理插件生成的 -bk- 目录。')
+      .addDropdown((dropdown) => {
+        dropdown
+          .addOptions({ '0': '全部保留', '3': '最近 3 份', '5': '最近 5 份', '10': '最近 10 份', '20': '最近 20 份' })
+          .setValue(String(this.plugin.settings.backupRetention ?? 0))
+          .onChange(async (value) => {
+            this.plugin.settings.backupRetention = Number(value);
+
+            await this.plugin.saveSettings();
+          });
       });
   }
 

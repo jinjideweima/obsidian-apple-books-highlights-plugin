@@ -28,6 +28,7 @@ export const memoryVault = () => {
     },
     getFolderByPath: (path: string) => (folders.has(path) ? { path } : null),
     getFileByPath: file,
+    getAllLoadedFiles: () => [...[...folders].map((path) => ({ path, children: [] })), ...[...files.keys()].map(file)],
     getMarkdownFiles: () => [...files.keys()].filter((p) => p.endsWith('.md')).map(file),
     createFolder: vi.fn(async (p: string) => {
       folders.add(p);
@@ -84,6 +85,8 @@ export const memoryVault = () => {
     fileManager: {
       trashFile: vi.fn(async (f: any) => {
         files.delete(f.path);
+        for (const store of [files, folders])
+          for (const key of [...store.keys()]) if (key === f.path || key.startsWith(f.path + '/')) store.delete(key);
       }),
     },
     workspace: { openLinkText: vi.fn() },

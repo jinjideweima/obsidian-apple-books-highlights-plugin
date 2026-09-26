@@ -67,6 +67,7 @@ describe('Settings tab', () => {
       vi.spyOn(settingsTab, 'addHighlightsFolderSetting'),
       vi.spyOn(settingsTab, 'addImportOnStartSetting'),
       vi.spyOn(settingsTab, 'addBackupSetting'),
+      vi.spyOn(settingsTab, 'addBackupRetentionSetting'),
       vi.spyOn(settingsTab, 'addTemplateSetting'),
       vi.spyOn(settingsTab, 'addFilenameTemplateSetting'),
       vi.spyOn(settingsTab, 'addResetTemplateSetting'),
@@ -119,6 +120,16 @@ describe('Settings tab UI interaction', () => {
     await (lastSetting().components[0] as any).change(true);
 
     expect(mockPlugin.settings.importOnStart).toBe(true);
+    expect(mockPlugin.saveSettings).toHaveBeenCalled();
+  });
+
+  test('Choosing a backup retention persists it as a number', async () => {
+    expect(defaultPluginSettings.backupRetention).toBe(0);
+    settingsTab.addBackupRetentionSetting(containerEl as unknown as HTMLElement);
+
+    await (lastSetting().components[0] as any).change('5');
+
+    expect(mockPlugin.settings.backupRetention).toBe(5);
     expect(mockPlugin.saveSettings).toHaveBeenCalled();
   });
 

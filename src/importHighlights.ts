@@ -33,7 +33,13 @@ export const importHighlights = async (
     }
   }
   if (selectedBookId && !selected.length) result.warnings.push('Apple Books 中暂未找到这本书，已有笔记已保留。');
-  if (settings.backup && enriched.length) await vault.backupAllHighlights();
+  if (settings.backup && enriched.length) {
+    const snapshot = await vault.backupAllHighlights();
+    // Pruning is housekeeping: a failure must not block the import that follows.
+    await vault.pruneBackups(settings.backupRetention ?? 0, snapshot).catch((error) => {
+      result.warnings.push(`旧备份清理失败，已全部保留。${error instanceof Error ? error.message : ''}`);
+    });
+  }
   const filenameTemplate = compileTemplate(settings.filenameTemplate);
   const coverTemplate = settings.coverPathTemplate?.trim() ? compileTemplate(settings.coverPathTemplate) : null;
   const template = compileTemplate(settings.template);

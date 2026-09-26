@@ -93,6 +93,45 @@ describe('safe incremental import', () => {
     expect(env.api.adapter.rename).not.toHaveBeenCalled();
     expect([...env.files].some(([p, c]) => p.includes('-bk-') && String(c).includes('我的独立思考'))).toBe(true);
   });
+  test('backup retention trashes only the oldest plugin snapshots', async () => {
+    await sync();
+    env.settings.backup = true;
+    env.settings.backupRetention = 2;
+    const root = env.settings.highlightsFolder;
+    // Older snapshots from earlier imports, plus folders that merely look similar.
+    for (const folder of [`${root}-bk-100`, `${root}-bk-200`, `${root}-bk-300`, `${root}-bk-old`, `${root}-bk-50/nested`, `other-bk-1`]) {
+      env.folders.add(folder);
+      env.put(`${folder}/note.md`, 'snapshot');
+    }
+    let now = 1000;
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => now);
+    try {
+      await sync();
+      expect(env.folders.has(`${root}-bk-1000`)).toBe(true);
+      expect(env.folders.has(`${root}-bk-300`)).toBe(true);
+      expect(env.folders.has(`${root}-bk-200`)).toBe(false);
+      expect(env.files.has(`${root}-bk-100/note.md`)).toBe(false);
+      for (const kept of [`${root}-bk-old`, `${root}-bk-50/nested`, `other-bk-1`]) expect(env.folders.has(kept)).toBe(true);
+      now = 2000;
+      env.settings.backupRetention = 0;
+      await sync();
+      expect(env.folders.has(`${root}-bk-300`)).toBe(true);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+  test('a failed backup cleanup is reported without blocking the import', async () => {
+    await sync();
+    env.settings.backup = true;
+    env.settings.backupRetention = 1;
+    env.folders.add(`${env.settings.highlightsFolder}-bk-1`);
+    env.app.fileManager.trashFile.mockRejectedValueOnce(new Error('locked'));
+    annotations.push(annotation('loc3'));
+    const result = await sync();
+    expect(result.warnings.join()).toContain('旧备份清理失败');
+    expect(result.failures).toEqual([]);
+    expect(result.created).toBe(1);
+  });
   test('retains main-note prose, manual properties, lists and cleared values', async () => {
     await sync();
     const path = mainPath();

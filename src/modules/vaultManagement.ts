@@ -218,8 +218,9 @@ export class VaultManagement {
     return null;
   }
 
-  async backupAllHighlights(): Promise<void> {
-    if (!this.getHighlightsFolderPath()) return;
+  // Returns the snapshot folder, or null when there is nothing to back up yet.
+  async backupAllHighlights(): Promise<string | null> {
+    if (!this.getHighlightsFolderPath()) return null;
     const root = this.getHighlightsFolder();
     const target = `${root}-bk-${Date.now()}`;
     const copy = async (source: string, destination: string): Promise<void> => {
@@ -253,6 +254,26 @@ export class VaultManagement {
       const destination = `${target}/.external-covers/${coverPath}`;
       await this.ensureFolder(destination.slice(0, destination.lastIndexOf('/')));
       await this.vault.adapter.copy(coverPath, destination);
+    }
+    return target;
+  }
+
+  // Keep the newest `keep` snapshots made by this plugin; 0 keeps them all.
+  // `latest` is passed explicitly because a just-copied folder may not be indexed yet.
+  async pruneBackups(keep: number, latest: string | null): Promise<void> {
+    if (!(keep > 0)) return;
+    const root = this.getHighlightsFolder();
+    const escaped = root.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = new RegExp(`^${escaped}-bk-(\\d+)$`);
+    const snapshots = new Map<string, number>();
+    for (const entry of [...this.vault.getAllLoadedFiles().map((f) => f.path), latest]) {
+      const stamp = entry?.match(pattern)?.[1];
+      if (entry && stamp) snapshots.set(entry, Number(stamp));
+    }
+    const expired = [...snapshots].sort((a, b) => b[1] - a[1]).slice(keep);
+    for (const [path] of expired) {
+      const folder = this.vault.getFolderByPath(path);
+      if (folder) await this.app.fileManager.trashFile(folder);
     }
   }
 

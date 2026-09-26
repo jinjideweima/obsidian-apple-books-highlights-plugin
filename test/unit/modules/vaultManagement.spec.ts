@@ -313,7 +313,7 @@ describe('VaultManagement', () => {
 
   test('single-book backup includes cards and covers through the snapshot routine', async () => {
     const manager = new VaultManagement(mockApp, mockSettings);
-    const snapshot = vi.spyOn(manager, 'backupAllHighlights').mockResolvedValue();
+    const snapshot = vi.spyOn(manager, 'backupAllHighlights').mockResolvedValue(null);
     await manager.backupBookFile({ path: 'ibooks-highlights/Book.md' } as any);
     expect(snapshot).toHaveBeenCalledOnce();
   });
