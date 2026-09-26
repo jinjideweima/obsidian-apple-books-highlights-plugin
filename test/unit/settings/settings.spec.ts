@@ -14,7 +14,8 @@ describe('Default settings', () => {
     expect(defaultPluginSettings).toHaveProperty('highlightsFolder');
     expect(defaultPluginSettings).toHaveProperty('backup');
     expect(defaultPluginSettings).toHaveProperty('importOnStart');
-    expect(defaultPluginSettings).toHaveProperty('highlightsSortingCriterion');
+    expect(defaultPluginSettings).not.toHaveProperty('highlightsSortingCriterion');
+    expect(defaultPluginSettings).not.toHaveProperty('keepMeSectionOpeningDelimiter');
     expect(defaultPluginSettings).toHaveProperty('template');
     expect(defaultPluginSettings).toHaveProperty('filenameTemplate');
   });
@@ -23,7 +24,6 @@ describe('Default settings', () => {
     expect(defaultPluginSettings.highlightsFolder).toBe('ibooks-highlights');
     expect(defaultPluginSettings.backup).toBe(false);
     expect(defaultPluginSettings.importOnStart).toBe(false);
-    expect(defaultPluginSettings.highlightsSortingCriterion).toBe('book');
     expect(defaultPluginSettings.template).toBe(defaultTemplate);
     expect(defaultPluginSettings.filenameTemplate).toBe('{{{bookTitle}}} - {{{bookAuthor}}}');
   });
@@ -67,9 +67,7 @@ describe('Settings tab', () => {
       vi.spyOn(settingsTab, 'addHighlightsFolderSetting'),
       vi.spyOn(settingsTab, 'addImportOnStartSetting'),
       vi.spyOn(settingsTab, 'addBackupSetting'),
-      vi.spyOn(settingsTab, 'addHighlightsSortingCriterionSetting'),
       vi.spyOn(settingsTab, 'addTemplateSetting'),
-      vi.spyOn(settingsTab, 'addKeepMeSectionSetting'),
       vi.spyOn(settingsTab, 'addFilenameTemplateSetting'),
       vi.spyOn(settingsTab, 'addResetTemplateSetting'),
       vi.spyOn(settingsTab, 'addCredits'),
@@ -121,15 +119,6 @@ describe('Settings tab UI interaction', () => {
     await (lastSetting().components[0] as any).change(true);
 
     expect(mockPlugin.settings.importOnStart).toBe(true);
-    expect(mockPlugin.saveSettings).toHaveBeenCalled();
-  });
-
-  test('Selecting a sorting criterion persists the new value', async () => {
-    settingsTab.addHighlightsSortingCriterionSetting(containerEl as unknown as HTMLElement);
-
-    await (lastSetting().components[0] as any).change('book');
-
-    expect(mockPlugin.settings.highlightsSortingCriterion).toBe('book');
     expect(mockPlugin.saveSettings).toHaveBeenCalled();
   });
 

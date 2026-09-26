@@ -84,12 +84,8 @@ describe('IBookHighlightsPlugin', () => {
       highlightsFolder: 'folder',
       backup: true,
       importOnStart: false,
-      highlightsSortingCriterion: 'creationDateOldToNew' as const,
       template: 'template',
       filenameTemplate: 'filename',
-      keepMeSectionOpeningDelimiter: '%% keep-me %%',
-      keepMeSectionClosingDelimiter: '%% /keep-me %%',
-      keepMeSectionData: {},
     };
     plugin.settings = validSettings;
     await plugin.saveSettings();

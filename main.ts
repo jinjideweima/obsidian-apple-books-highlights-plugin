@@ -4,7 +4,6 @@ import { showImportResult } from './src/modals/importResult';
 import { getHighlightCards } from './src/modules/highlightRepository';
 import { VaultManagement } from './src/modules/vaultManagement';
 import { defaultPluginSettings, IBookHighlightsSettingTab } from './src/settings';
-import { saveKeepMeSectionData } from './src/utils/manageKeepMeSection';
 import { showFailedImportNotice, showErrorInConsole } from './src/utils/notificationCenter';
 import { watchVault } from './src/utils/watchVault';
 import { cleanupCardRenderer, cleanupCardsBoard, renderCardsBoard } from './src/views/cardRenderer';
@@ -57,11 +56,6 @@ export default class IBookHighlightsPlugin extends Plugin {
       });
     }
 
-    this.registerEvent(
-      this.app.workspace.on('quick-preview', async (file, data) => {
-        await saveKeepMeSectionData(file, data, this, this.settings);
-      }),
-    );
     this.app.workspace.onLayoutReady(() => {
       markLibraryLeaves(this);
       void migrateLibraryBase(this).catch((error) => console.warn('Apple Books: 图书馆过滤规则迁移失败', error));

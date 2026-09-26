@@ -107,7 +107,6 @@ book_id: 你的书籍ID
 | 摘录文件夹 | 摘录文件存放位置，默认 `ibooks-highlights` |
 | 启动时导入 | Obsidian 启动时自动同步摘录                |
 | 导入前备份 | 每次导入前备份旧文件                       |
-| 排序方式   | 按创建时间、修改时间或书中位置排序         |
 | 内容模板   | 自定义书籍主笔记的 Handlebars 模板         |
 | 文件名模板 | 自定义生成的文件名格式                     |
 
@@ -212,7 +211,6 @@ Omit `book_id` to display all highlights.
 | Highlights folder    | Where highlight files are stored. Default: `ibooks-highlights` |
 | Import on startup    | Automatically sync highlights when Obsidian launches           |
 | Backup before import | Back up existing files before each import                      |
-| Sort order           | Sort by creation date, modification date, or position in book  |
 | Content template     | Customize the book note format using Handlebars                |
 | Filename template    | Customize how generated filenames are formatted                |
 

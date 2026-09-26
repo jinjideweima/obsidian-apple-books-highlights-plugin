@@ -88,6 +88,6 @@ export const memoryVault = () => {
     },
     workspace: { openLinkText: vi.fn() },
   };
-  const settings = { ...defaultPluginSettings, keepMeSectionData: {} };
+  const settings = { ...defaultPluginSettings };
   return { app, api, files, folders, put, settings, vault: new VaultManagement(app, settings) };
 };

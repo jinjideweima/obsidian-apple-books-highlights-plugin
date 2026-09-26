@@ -1,6 +1,6 @@
 import { type App, Notice, PluginSettingTab, Setting } from 'obsidian';
 import type IBookHighlightsPlugin from '../../main';
-import { type IBookHighlightsPluginSettings, IHighlightsSortingCriterion } from '../types';
+import type { IBookHighlightsPluginSettings } from '../types';
 import { openDashboardView } from '../views/dashboardView';
 
 export const defaultTemplate = `---
@@ -54,14 +54,10 @@ export const defaultPluginSettings: IBookHighlightsPluginSettings = {
   highlightsFolder: 'ibooks-highlights',
   backup: false,
   importOnStart: false,
-  highlightsSortingCriterion: 'book',
   template: defaultTemplate,
   filenameTemplate: '{{{bookTitle}}} - {{{bookAuthor}}}',
   coverPathTemplate: '',
   libraryPagePath: '',
-  keepMeSectionOpeningDelimiter: '%% keep-me %%',
-  keepMeSectionClosingDelimiter: '%% /keep-me %%',
-  keepMeSectionData: {},
 };
 
 export class IBookHighlightsSettingTab extends PluginSettingTab {
@@ -88,9 +84,7 @@ export class IBookHighlightsSettingTab extends PluginSettingTab {
     this.addHighlightsFolderSetting(containerEl);
     this.addImportOnStartSetting(containerEl);
     this.addBackupSetting(containerEl);
-    this.addHighlightsSortingCriterionSetting(containerEl);
     this.addTemplateSetting(containerEl);
-    this.addKeepMeSectionSetting(containerEl);
     this.addFilenameTemplateSetting(containerEl);
     this.addCoverPathTemplateSetting(containerEl);
     this.addLibraryPagePathSetting(containerEl);
@@ -157,25 +151,6 @@ export class IBookHighlightsSettingTab extends PluginSettingTab {
 
           await this.plugin.saveSettings();
         });
-      });
-  }
-
-  addHighlightsSortingCriterionSetting(containerEl: HTMLElement): void {
-    new Setting(containerEl)
-      .setName('摘录排序方式')
-      .setDesc('按书中位置排列；新增、移除和恢复时连续编号。筛选与随机展示保留编号。')
-      .setClass('ibooks-highlights-sorting')
-      .addDropdown((dropdown) => {
-        const options = { book: '按书中位置' };
-
-        dropdown
-          .addOptions(options)
-          .setValue('book')
-          .onChange(async (value: IHighlightsSortingCriterion) => {
-            this.plugin.settings.highlightsSortingCriterion = value;
-
-            await this.plugin.saveSettings();
-          });
       });
   }
 
@@ -287,46 +262,6 @@ export class IBookHighlightsSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.libraryPagePath || '')
           .onChange(async (value) => {
             this.plugin.settings.libraryPagePath = value;
-
-            await this.plugin.saveSettings();
-          });
-        return text;
-      });
-  }
-
-  addKeepMeSectionSetting(containerEl: HTMLElement): void {
-    new Setting(containerEl)
-      .setName('模板：保留区')
-      .setDesc(
-        createFragment((el) => {
-          el.appendText('重新导入时不会被覆盖的内容区域。');
-          el.createEl('br');
-          el.appendText('默认分隔符：');
-          const ul = el.createEl('ul');
-          ul.createEl('li', { text: 'Opening: %% keep-me %%' });
-          ul.createEl('li', { text: 'Closing: %% /keep-me %%' });
-        }),
-      )
-      .setClass('ibooks-highlights-keep-me-section')
-      .addText((text) => {
-        text
-          .setPlaceholder('开始分隔符')
-          .setValue(this.plugin.settings.keepMeSectionOpeningDelimiter || defaultPluginSettings.keepMeSectionOpeningDelimiter)
-          .onChange(async (value) => {
-            const valueToSet = value === '' ? defaultPluginSettings.keepMeSectionOpeningDelimiter : value;
-            this.plugin.settings.keepMeSectionOpeningDelimiter = valueToSet;
-
-            await this.plugin.saveSettings();
-          });
-        return text;
-      })
-      .addText((text) => {
-        text
-          .setPlaceholder('结束分隔符')
-          .setValue(this.plugin.settings.keepMeSectionClosingDelimiter || defaultPluginSettings.keepMeSectionClosingDelimiter)
-          .onChange(async (value) => {
-            const valueToSet = value === '' ? defaultPluginSettings.keepMeSectionClosingDelimiter : value;
-            this.plugin.settings.keepMeSectionClosingDelimiter = valueToSet;
 
             await this.plugin.saveSettings();
           });

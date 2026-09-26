@@ -35,12 +35,8 @@ describe('VaultManagement', () => {
     highlightsFolder: 'ibooks-highlights',
     backup: false,
     importOnStart: false,
-    highlightsSortingCriterion: 'creationDateOldToNew',
     template: defaultTemplate,
     filenameTemplate: '{{{bookTitle}}}',
-    keepMeSectionOpeningDelimiter: '%% keep-me %%',
-    keepMeSectionClosingDelimiter: '%% /keep-me %%',
-    keepMeSectionData: {},
   };
 
   afterEach(() => {
