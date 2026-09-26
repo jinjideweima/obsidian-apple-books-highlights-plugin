@@ -37,3 +37,27 @@ test('failed link rewrite rolls rename and earlier link writes back', async () =
   expect(env.files.has('b.md')).toBe(false);
   expect(env.files.get('ref.md')).toBe('[[a|引用]]');
 });
+test('relocation reads only notes the link index says may link to the file', async () => {
+  const env = memoryVault();
+  env.put('a.md', '内容');
+  env.put('ref.md', '[[a|引用]]');
+  env.put('unrelated.md', '[[other]]');
+  env.put('fresh.md', '刚写入、尚未索引：[[a]]');
+  env.app.metadataCache = {
+    resolvedLinks: { 'ref.md': { 'a.md': 1 }, 'unrelated.md': { 'other.md': 1 } },
+    getFileCache: (file: { path: string }) => (file.path === 'fresh.md' ? null : {}),
+    getFirstLinkpathDest: () => null,
+  };
+  await relocateFile(env.app, env.api.getFileByPath('a.md'), 'b.md');
+  expect(env.files.get('ref.md')).toBe('[[b|引用]]');
+  expect(env.files.get('fresh.md')).toBe('刚写入、尚未索引：[[b]]');
+  const read = env.api.read.mock.calls.map(([file]: [{ path: string }]) => file.path);
+  expect(read).not.toContain('unrelated.md');
+});
+test('relocation falls back to reading every note without a link index', async () => {
+  const env = memoryVault();
+  env.put('a.md', '内容');
+  env.put('ref.md', '[[a|引用]]');
+  await relocateFile(env.app, env.api.getFileByPath('a.md'), 'b.md');
+  expect(env.files.get('ref.md')).toBe('[[b|引用]]');
+});

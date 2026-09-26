@@ -4,10 +4,20 @@ import { parseFrontmatter } from '../utils/markdown';
 const parent = (path: string) => path.slice(0, path.lastIndexOf('/'));
 export const isBackup = (path: string) => /-bk-\d+(?:\/|$)/.test(path);
 
+// Only notes that can link to oldPath need reading. The link index covers body, embed, Markdown
+// and property links; notes it has not indexed yet are still read, as is every note when the
+// index is unavailable.
+const linkSources = (app: App, oldPath: string): TFile[] => {
+  const files = app.vault.getMarkdownFiles();
+  const resolved = app.metadataCache?.resolvedLinks;
+  if (!resolved) return files;
+  return files.filter((file) => resolved[file.path]?.[oldPath] || !app.metadataCache.getFileCache(file));
+};
+
 // Use Obsidian's resolver, but deliberately exclude historical snapshots from link edits.
 async function planLinks(app: App, oldPath: string, target: TFile): Promise<Array<{ source: TFile; original: string; next: string }>> {
   const edits: Array<{ source: TFile; original: string; next: string }> = [];
-  for (const source of app.vault.getMarkdownFiles()) {
+  for (const source of linkSources(app, oldPath)) {
     if (isBackup(source.path)) continue;
     const original = await app.vault.read(source);
     const transform = (text: string) =>
