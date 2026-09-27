@@ -80,6 +80,17 @@ test('number keys grade, then the panel reports completion and offers more new c
   await vi.waitFor(() => expect(env.review().querySelector('.abkc-tag')?.textContent).toBe('新摘录'));
 });
 
+test('one unreadable note does not break the dashboard', async () => {
+  const env = memoryVault();
+  env.put('ibooks-highlights/坏的.md', '---\ntitle: [broken\n---\n');
+  env.put('ibooks-highlights/cards/bad.md', '---\nbook_title: [broken\n---\n');
+  env.put('ibooks-highlights/三体.md', book('三体', '', 1));
+  env.put('ibooks-highlights/cards/1.md', card(1));
+  const container = document.body.appendChild(document.createElement('div'));
+  await renderDashboard({ app: env.app, settings: env.settings, manifest: { name: 't' } } as any, container);
+  expect(container.querySelector('.abkc-home-summary')?.textContent).toBe('1 本书·1 条摘录·1 条有想法');
+});
+
 test('an empty library invites an import instead of showing a review', async () => {
   const { review } = await setup(0);
   expect(review().textContent).toContain('导入摘录后');

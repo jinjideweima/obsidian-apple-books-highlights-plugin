@@ -8,7 +8,7 @@ import { importHighlightCards } from './modules/highlightCards';
 import { getHighlightCards } from './modules/highlightRepository';
 import { compileTemplate } from './modules/templateProcessing';
 import { compareLocations, cardLink } from './utils/cardIdentity';
-import { safeRelativePath, parseFrontmatter, textValue, filenameValue } from './utils/markdown';
+import { safeRelativePath, parseFrontmatter, textValue, filenameValue, tryParseFrontmatter } from './utils/markdown';
 
 export const importHighlights = async (
   vault: VaultManagement,
@@ -62,6 +62,11 @@ export const importHighlights = async (
         if (vault.getFilePath(filename)) throw new Error('书籍文件名冲突，请检查：' + filename);
       }
       const path = `${vault.getHighlightsFolder()}/${filename}.md`;
+      const blocking = vault.blockingFile(book.bookId, [path, `${vault.getHighlightsFolder()}/${safeRelativePath(filenameTemplate(namingData))}.md`]);
+      if (blocking) {
+        result.failures.push(`《${book.bookTitle}》：${blocking} 的属性格式无法解析，已跳过这本书以免重复或覆盖。修复该文件的属性后再导入。`);
+        continue;
+      }
       let existing = await vault.readFileIfExists(path);
       const state = await vault.readBookState(book.bookId);
       const oldProperties = parseFrontmatter(existing);
@@ -94,7 +99,7 @@ export const importHighlights = async (
         let shared = false;
         for (const other of vault.getMarkdownFiles()) {
           if (other.path === path || other.path.includes('/cards/')) continue;
-          const fm = parseFrontmatter(await vault.readFileIfExists(other.path));
+          const fm = tryParseFrontmatter(await vault.readFileIfExists(other.path)) || {};
           if (fm.type === 'book' && fm.cover === oldProperties.cover) shared = true;
         }
         if (!shared) {

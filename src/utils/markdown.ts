@@ -1,15 +1,46 @@
 import { parseYaml, stringifyYaml } from 'obsidian';
 
 export type Properties = Record<string, unknown>;
+
+// The 1.8 default template wrapped values in quotes without escaping inner ones, e.g.
+// `title: "学会说 "保留""`. Only such lines are re-quoted, and only after normal parsing failed.
+const repairLegacyQuotes = (yaml: string): string =>
+  yaml.replace(/^([A-Za-z_][\w-]*): "(.*)"[ \t]*$/gm, (line, key: string, inner: string) =>
+    /(^|[^\\])"/.test(inner) ? `${key}: ${JSON.stringify(inner)}` : line,
+  );
+
+const parseProperties = (yaml: string): unknown => {
+  try {
+    return parseYaml(yaml);
+  } catch (error) {
+    const repaired = repairLegacyQuotes(yaml);
+    if (repaired === yaml) throw error;
+    return parseYaml(repaired);
+  }
+};
+
 export const splitMarkdown = (content: string): { properties: Properties; body: string } => {
   const match = content.match(/^\uFEFF?---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
   if (!match) return { properties: {}, body: content };
-  const value: unknown = parseYaml(match[1]);
+  const value: unknown = parseProperties(match[1]);
   if (value !== null && (typeof value !== 'object' || Array.isArray(value)))
     throw new Error('笔记属性不是有效的 YAML 对象，已停止更新该文件。');
   return { properties: (value || {}) as Properties, body: content.slice(match[0].length) };
 };
 export const parseFrontmatter = (content: string): Properties => splitMarkdown(content).properties;
+
+// For listings: one unreadable note must not break the whole view.
+export const tryParseFrontmatter = (content: string): Properties | null => {
+  try {
+    return parseFrontmatter(content);
+  } catch {
+    return null;
+  }
+};
+
+// Recovers the book a note belongs to even when its properties are not valid YAML.
+export const rawBookId = (content: string): string =>
+  content.match(/^\uFEFF?---\r?\n[\s\S]*?^book_id:[ \t]*["']?([^"'\r\n]*?)["']?[ \t]*$/m)?.[1] || '';
 export const writeMarkdown = (properties: Properties, body: string): string => `---\n${stringifyYaml(properties).trimEnd()}\n---\n${body}`;
 export const patchProperties = (content: string, values: Properties): string => {
   const { properties, body } = splitMarkdown(content);

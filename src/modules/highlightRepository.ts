@@ -1,7 +1,7 @@
 import type { App, TFile } from 'obsidian';
 import type { IBookHighlightsPluginSettings, IBookNoteSummary, IHighlightCard } from '../types';
 import { compareLocations } from '../utils/cardIdentity';
-import { parseFrontmatter, patchProperties, extractSection, setSection, textValue } from '../utils/markdown';
+import { parseFrontmatter, patchProperties, extractSection, setSection, textValue, tryParseFrontmatter } from '../utils/markdown';
 import { readReview, reviewProperties, schedule, type Grade } from './review';
 
 const getCardFile = (app: App, path: string): TFile => {
@@ -26,13 +26,17 @@ export const getHighlightCards = async (app: App, settings: IBookHighlightsPlugi
   }
   const paths = new Set(files.map((f) => f.path));
   for (const path of cache.keys()) if (!paths.has(path)) cache.delete(path);
-  const cards = await Promise.all(
+  const loaded = await Promise.all(
     files.map(async (file: TFile) => {
       const stamp = `${file.stat?.mtime}:${file.stat?.size}`;
       const cached = cache!.get(file.path);
       if (file.stat && cached?.stamp === stamp) return cached.card;
       const content = await app.vault.cachedRead(file);
-      const frontmatter = parseFrontmatter(content);
+      const frontmatter = tryParseFrontmatter(content);
+      if (!frontmatter) {
+        console.warn(`[Apple Books Knowledge Cards] 摘录属性无法解析，已跳过：${file.path}`);
+        return null;
+      }
 
       const card: IHighlightCard = {
         path: file.path,
@@ -63,6 +67,7 @@ export const getHighlightCards = async (app: App, settings: IBookHighlightsPlugi
     }),
   );
 
+  const cards = loaded.filter((card): card is IHighlightCard => card !== null);
   cards.sort(
     (a, b) =>
       a.bookId.localeCompare(b.bookId) ||
@@ -86,7 +91,11 @@ export const getBookSummaries = async (app: App, settings: IBookHighlightsPlugin
   const books = await Promise.all(
     files.map(async (file: TFile) => {
       const content = await app.vault.cachedRead(file);
-      const frontmatter = parseFrontmatter(content);
+      const frontmatter = tryParseFrontmatter(content);
+      if (!frontmatter) {
+        console.warn(`[Apple Books Knowledge Cards] 书籍属性无法解析，已跳过：${file.path}`);
+        return null;
+      }
       if (frontmatter.type !== 'book' || frontmatter.source !== 'Apple Books' || /-bk-\d+/.test(file.path)) return null;
 
       return {
