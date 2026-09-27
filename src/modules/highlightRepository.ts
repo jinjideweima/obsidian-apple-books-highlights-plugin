@@ -1,7 +1,8 @@
 import type { App, TFile } from 'obsidian';
 import type { IBookHighlightsPluginSettings, IBookNoteSummary, IHighlightCard } from '../types';
 import { compareLocations } from '../utils/cardIdentity';
-import { parseFrontmatter, patchProperties, extractSection, setSection, textValue } from '../utils/markdown';
+import { parseFrontmatter, patchProperties, extractSection, setSection, textValue, tryParseFrontmatter } from '../utils/markdown';
+import { readReview, reviewProperties, schedule, type Grade } from './review';
 
 const getCardFile = (app: App, path: string): TFile => {
   const file = app.vault.getFileByPath(path);
@@ -25,13 +26,17 @@ export const getHighlightCards = async (app: App, settings: IBookHighlightsPlugi
   }
   const paths = new Set(files.map((f) => f.path));
   for (const path of cache.keys()) if (!paths.has(path)) cache.delete(path);
-  const cards = await Promise.all(
+  const loaded = await Promise.all(
     files.map(async (file: TFile) => {
       const stamp = `${file.stat?.mtime}:${file.stat?.size}`;
       const cached = cache!.get(file.path);
       if (file.stat && cached?.stamp === stamp) return cached.card;
       const content = await app.vault.cachedRead(file);
-      const frontmatter = parseFrontmatter(content);
+      const frontmatter = tryParseFrontmatter(content);
+      if (!frontmatter) {
+        console.warn(`[Apple Books Knowledge Cards] 摘录属性无法解析，已跳过：${file.path}`);
+        return null;
+      }
 
       const card: IHighlightCard = {
         path: file.path,
@@ -55,12 +60,14 @@ export const getHighlightCards = async (app: App, settings: IBookHighlightsPlugi
         archived: frontmatter.archived === true,
         sourceRemoved: frontmatter.source_removed === true,
         restored: frontmatter.restored === true,
+        review: readReview(frontmatter),
       };
       cache!.set(file.path, { stamp, card });
       return card;
     }),
   );
 
+  const cards = loaded.filter((card): card is IHighlightCard => card !== null);
   cards.sort(
     (a, b) =>
       a.bookId.localeCompare(b.bookId) ||
@@ -84,7 +91,11 @@ export const getBookSummaries = async (app: App, settings: IBookHighlightsPlugin
   const books = await Promise.all(
     files.map(async (file: TFile) => {
       const content = await app.vault.cachedRead(file);
-      const frontmatter = parseFrontmatter(content);
+      const frontmatter = tryParseFrontmatter(content);
+      if (!frontmatter) {
+        console.warn(`[Apple Books Knowledge Cards] 书籍属性无法解析，已跳过：${file.path}`);
+        return null;
+      }
       if (frontmatter.type !== 'book' || frontmatter.source !== 'Apple Books' || /-bk-\d+/.test(file.path)) return null;
 
       return {
@@ -95,6 +106,7 @@ export const getBookSummaries = async (app: App, settings: IBookHighlightsPlugin
         annotationCount: Number(frontmatter.annotation_count || 0),
         status: String(frontmatter.status || ''),
         cover: String(frontmatter.cover || ''),
+        lastOpened: String(frontmatter.last_opened || ''),
       };
     }),
   );
@@ -128,4 +140,13 @@ export const deleteArchivedCard = async (app: App, card: IHighlightCard): Promis
   const fm = parseFrontmatter(await app.vault.read(file));
   if (fm.archived !== true || fm.source_removed !== true) throw new Error('只能清理已移除的摘录');
   await app.fileManager.trashFile(file);
+};
+
+export const recordReview = async (app: App, card: IHighlightCard, grade: Grade, today: string): Promise<void> => {
+  await setHighlightProperties(app, card, reviewProperties(schedule(card.review ?? null, grade, today)));
+};
+
+// Suspended cards stay out of the daily review; resuming keeps their schedule.
+export const setReviewSuspended = async (app: App, card: IHighlightCard, suspended: boolean): Promise<void> => {
+  await setHighlightProperties(app, card, { review_suspended: suspended });
 };

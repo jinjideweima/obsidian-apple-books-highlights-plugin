@@ -1,5 +1,5 @@
 import type { App, TFile } from 'obsidian';
-import { parseFrontmatter } from '../utils/markdown';
+import { tryParseFrontmatter } from '../utils/markdown';
 
 const parent = (path: string) => path.slice(0, path.lastIndexOf('/'));
 export const isBackup = (path: string) => /-bk-\d+(?:\/|$)/.test(path);
@@ -86,8 +86,8 @@ export async function consolidateCards(
 ): Promise<string[]> {
   const matching: TFile[] = [];
   for (const f of files) {
-    const fm = parseFrontmatter(await app.vault.read(f));
-    if (String(fm.book_id) === bookId && fm.type === 'ibooks_highlight') matching.push(f);
+    const fm = tryParseFrontmatter(await app.vault.read(f));
+    if (fm && String(fm.book_id) === bookId && fm.type === 'ibooks_highlight') matching.push(f);
   }
   const oldFolders = [...new Set(matching.map((f) => parent(f.path)))];
   const destinations = new Set<string>();

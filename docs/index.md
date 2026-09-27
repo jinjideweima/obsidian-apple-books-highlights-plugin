@@ -23,10 +23,10 @@ features:
     details: 每条 Apple Books 高亮自动生成独立的 Markdown 摘录卡片，支持收藏、笔记、复制、打开原文
   - icon: 🖼️
     title: 摘录墙
-    details: 以卡片墙视图浏览所有摘录，支持按书籍/作者/章节/颜色筛选，全文搜索，随机回顾
+    details: 书籍页按章节分组阅读，全部摘录以瀑布流浏览；支持搜索、筛选和键盘操作
   - icon: 📊
     title: 阅读仪表盘
-    details: 一览式仪表盘展示阅读统计、最近书籍、随机回顾和最新摘录
+    details: 每天用间隔复习安排值得重读的摘录，并展示继续阅读书架、阅读足迹和最新摘录
   - icon: 📖
     title: EPUB 章节推断
     details: 自动从 EPUB 文件中解析章节和段落上下文，即使 Apple Books 未提供章节信息

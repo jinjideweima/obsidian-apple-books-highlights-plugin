@@ -68,6 +68,7 @@ describe('Settings tab', () => {
       vi.spyOn(settingsTab, 'addImportOnStartSetting'),
       vi.spyOn(settingsTab, 'addBackupSetting'),
       vi.spyOn(settingsTab, 'addBackupRetentionSetting'),
+      vi.spyOn(settingsTab, 'addReviewNewPerDaySetting'),
       vi.spyOn(settingsTab, 'addTemplateSetting'),
       vi.spyOn(settingsTab, 'addFilenameTemplateSetting'),
       vi.spyOn(settingsTab, 'addResetTemplateSetting'),
@@ -131,6 +132,15 @@ describe('Settings tab UI interaction', () => {
 
     expect(mockPlugin.settings.backupRetention).toBe(5);
     expect(mockPlugin.saveSettings).toHaveBeenCalled();
+  });
+
+  test('Choosing the daily new highlight count persists it as a number', async () => {
+    expect(defaultPluginSettings.reviewNewPerDay).toBe(10);
+    settingsTab.addReviewNewPerDaySetting(containerEl as unknown as HTMLElement);
+
+    await (lastSetting().components[0] as any).change('20');
+
+    expect(mockPlugin.settings.reviewNewPerDay).toBe(20);
   });
 
   test('Emptying the template field falls back to the default template', async () => {

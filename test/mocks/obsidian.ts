@@ -134,6 +134,10 @@ export class ButtonComponent {
     this.buttonText = text;
     return this;
   }
+  setWarning(): this {
+    return this;
+  }
+
   setCta(): this {
     this.cta = true;
     return this;
@@ -365,3 +369,57 @@ export const MarkdownRenderer = {
     el.textContent = text;
   },
 };
+
+export class MenuItem {
+  title = '';
+  icon = '';
+  checked = false;
+  handler: (event?: unknown) => unknown = () => {};
+  setTitle(title: string): this {
+    this.title = title;
+    return this;
+  }
+  setIcon(icon: string): this {
+    this.icon = icon;
+    return this;
+  }
+  setChecked(checked: boolean): this {
+    this.checked = checked;
+    return this;
+  }
+  setSection(): this {
+    return this;
+  }
+  onClick(handler: (event?: unknown) => unknown): this {
+    this.handler = handler;
+    return this;
+  }
+}
+
+// Records the last menu shown so tests can pick an item by title and run it.
+export class Menu {
+  static last: Menu | null = null;
+  items: MenuItem[] = [];
+  addItem(cb: (item: MenuItem) => void): this {
+    const item = new MenuItem();
+    cb(item);
+    this.items.push(item);
+    return this;
+  }
+  addSeparator(): this {
+    return this;
+  }
+  showAtMouseEvent(): this {
+    Menu.last = this;
+    return this;
+  }
+  showAtPosition(): this {
+    Menu.last = this;
+    return this;
+  }
+  async run(title: string): Promise<void> {
+    const item = this.items.find((entry) => entry.title === title);
+    if (!item) throw new Error(`No menu item: ${title}`);
+    await item.handler();
+  }
+}

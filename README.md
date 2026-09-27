@@ -19,20 +19,21 @@
 - 支持启动时自动同步
 - 每次导入前可备份，防止意外覆盖
 
-### 🃏 摘录卡片墙
+### 🃏 摘录墙
 
-- 以卡片形式浏览全部摘录
-- 支持按书名、作者、章节、颜色筛选
-- 支持全文搜索
-- 支持"随机一组"功能，适合每日随机复习
-- 可对摘录标记收藏、编辑本地笔记
+- 书籍页默认是按章节分组的单栏阅读列表，全部摘录默认是瀑布流网格，可随时切换
+- 一行工具栏：搜索，按书籍、章节、颜色筛选，只看收藏、未整理、有想法或已移除
+- 收藏和编辑笔记一键完成，其余操作在「⋯」菜单里；长摘录自动折叠
+- 键盘操作：`j`/`k` 上下移动，`f` 收藏，`e` 编辑，`c` 复制，回车打开
+- 界面完全跟随当前 Obsidian 主题，支持深色模式
 
 ### 📊 阅读仪表盘
 
-- 统计书籍数量、摘录总数、收藏数、想法数
-- 按摘录数量排列最值得回看的书
-- 随机回顾模块，每次打开随机展示几条摘录
-- 最近摘录模块
+- 今日回顾：用 FSRS 间隔复习算法安排每天要重读的摘录，按「忘了、模糊、记得、熟悉」评分，数字键 1–4 快速操作
+- 继续阅读：按最近打开时间排列的书架
+- 阅读足迹：近 18 周每天新增摘录的热力图
+- 整理入口：待整理、收藏、有想法、已移除，以及上次导入状态
+- 最近摘录列表
 
 ### ✏️ 摘录卡片文件
 
@@ -125,18 +126,19 @@ Turn your Apple Books highlights into structured knowledge cards in Obsidian.
 
 ### 🃏 Card Wall
 
-- Browse all highlights as visual cards
-- Filter by book title, author, chapter, or highlight color
-- Full-text search across highlights, notes, and metadata
-- "Random batch" mode for daily serendipitous review
-- Mark highlights as favorites and add local notes
+- A book page opens as a single-column reading list grouped by chapter; the all-highlights wall opens as a masonry grid. Either can be switched.
+- One-row toolbar: search, filter by book, chapter or color, and show only favorites, unprocessed, annotated or removed highlights
+- Favorite and edit in one click; everything else lives in the "⋯" menu. Long highlights collapse.
+- Keyboard: `j`/`k` to move, `f` favorite, `e` edit, `c` copy, Enter to open
+- Follows the active Obsidian theme, including dark mode
 
 ### 📊 Reading Dashboard
 
-- Stats overview: book count, total highlights, favorites, and annotated highlights
-- "Most worth revisiting" books sorted by highlight count
-- Random review section — a new set of cards every time you open it
-- Recent highlights section
+- Daily review: highlights scheduled with the FSRS spaced-repetition algorithm, graded Forgot / Hazy / Remembered / Familiar (keys 1–4)
+- Continue reading: a shelf ordered by when you last opened each book
+- Reading footprint: an 18-week heatmap of new highlights
+- Triage shortcuts for unprocessed, favorites, annotated and removed highlights, plus the last import status
+- Recent highlights
 
 ### ✏️ Highlight Card Files
 

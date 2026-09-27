@@ -1,6 +1,6 @@
 import type { App, Vault, TFolder, TFile } from 'obsidian';
 import type { IBookHighlightsPluginSettings } from '../types';
-import { parseFrontmatter, safeRelativePath } from '../utils/markdown';
+import { rawBookId, safeRelativePath, tryParseFrontmatter } from '../utils/markdown';
 import { consolidateCards, relocateFile, redirectLinks } from './bookResources';
 
 const joinPath = (...parts: string[]): string => parts.join('/').replace(/\/+/g, '/');
@@ -10,6 +10,8 @@ export class VaultManagement {
   private vault: Vault;
   private indexedBooks: Map<string, TFile> | null = null;
   private indexedCards: Map<string, TFile[]> | null = null;
+  // Notes whose properties cannot be parsed, with the book ID recovered from their raw text.
+  private unreadable = new Map<string, string>();
   private settings: IBookHighlightsPluginSettings;
   constructor(app: App, settings: IBookHighlightsPluginSettings) {
     this.app = app;
@@ -189,9 +191,15 @@ export class VaultManagement {
   async prepareImport(): Promise<void> {
     this.indexedBooks = new Map();
     this.indexedCards = new Map();
+    this.unreadable = new Map();
     for (const file of this.getMarkdownFiles()) {
       if (/-bk-\d+/.test(file.path)) continue;
-      const fm = parseFrontmatter(await this.vault.read(file));
+      const content = await this.vault.read(file);
+      const fm = tryParseFrontmatter(content);
+      if (!fm) {
+        this.unreadable.set(file.path, rawBookId(content));
+        continue;
+      }
       const id = String(fm.book_id || '');
       if (fm.type === 'book' && fm.source === 'Apple Books') {
         if (this.indexedBooks.has(id)) throw new Error('同一书籍 ID 对应多个笔记，请先检查：' + file.path);
@@ -204,6 +212,13 @@ export class VaultManagement {
       }
     }
   }
+  // A book is skipped while any of its notes, or the note it would be written to, is unreadable:
+  // without its properties the importer could create a duplicate or overwrite hand edits.
+  blockingFile(bookId: string, paths: string[]): string | null {
+    for (const [path, id] of this.unreadable) if (id === bookId || paths.includes(path)) return path;
+    return null;
+  }
+
   getCardFiles(bookId: string): TFile[] {
     return this.indexedCards?.get(bookId) || this.getMarkdownFiles().filter((f) => f.path.includes('/cards/'));
   }
@@ -212,8 +227,8 @@ export class VaultManagement {
     if (this.indexedBooks) return this.indexedBooks.get(bookId) || null;
     for (const file of this.getMarkdownFiles()) {
       if (/-bk-\d+/.test(file.path) || file.path.includes('/cards/')) continue;
-      const fm = parseFrontmatter(await this.vault.read(file));
-      if (fm.type === 'book' && String(fm.book_id) === bookId) return file;
+      const fm = tryParseFrontmatter(await this.vault.read(file));
+      if (fm?.type === 'book' && String(fm.book_id) === bookId) return file;
     }
     return null;
   }
@@ -245,8 +260,8 @@ export class VaultManagement {
     // Cover templates may point outside the highlights directory. Include those files too.
     for (const file of this.getMarkdownFiles()) {
       if (file.path.includes('/cards/')) continue;
-      const fm = parseFrontmatter(await this.vault.read(file));
-      if (fm.type !== 'book') continue;
+      const fm = tryParseFrontmatter(await this.vault.read(file));
+      if (fm?.type !== 'book') continue;
       const coverPath = String(fm.cover || '').match(/^\[\[([^|\]]+)/)?.[1];
       if (!coverPath || coverPath.startsWith(root + '/')) continue;
       safeRelativePath(coverPath);

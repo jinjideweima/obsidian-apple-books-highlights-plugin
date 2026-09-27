@@ -1,106 +1,169 @@
 // @vitest-environment jsdom
+import { Menu } from 'obsidian';
 import { beforeEach, expect, test, vi } from 'vitest';
 import { getHighlightCards } from '../../../src/modules/highlightRepository';
-import { writeMarkdown } from '../../../src/utils/markdown';
+import { parseFrontmatter, patchProperties, writeMarkdown } from '../../../src/utils/markdown';
 import { renderCardsBoard, cleanupCardRenderer } from '../../../src/views/cardRenderer';
+import { installObsidianDom, press } from '../../mocks/dom';
 import { memoryVault } from '../../mocks/memoryVault';
 
 beforeEach(() => {
   cleanupCardRenderer();
   document.body.innerHTML = '';
-  const proto = HTMLElement.prototype as any;
-  proto.createEl = function (tag: string, options: any = {}) {
-    const el = document.createElement(tag);
-    if (options.text) el.textContent = options.text;
-    if (options.cls) el.className = options.cls;
-    for (const key of ['value', 'href']) if (options[key] !== undefined) el.setAttribute(key, options[key]);
-    for (const [key, value] of Object.entries(options.attr || {})) el.setAttribute(key, String(value));
-    this.appendChild(el);
-    return el;
-  };
-  proto.createDiv = function (options: any) {
-    return this.createEl('div', options);
-  };
-  proto.createSpan = function (options: any) {
-    return this.createEl('span', options);
-  };
-  proto.empty = function () {
-    this.replaceChildren();
-  };
-  proto.addClass = function (cls: string) {
-    this.classList.add(cls);
-  };
-  proto.toggleClass = function (cls: string, enabled: boolean) {
-    this.classList.toggle(cls, enabled);
-  };
-  proto.setText = function (text: string) {
-    this.textContent = text;
-  };
+  installObsidianDom();
 });
-const setup = async () => {
+
+const card = (i: number, book: string, chapter: string, extra: Record<string, unknown> = {}) =>
+  writeMarkdown(
+    {
+      type: 'ibooks_highlight',
+      book_id: book === 'Book A' ? 'a' : 'b',
+      book_title: book,
+      annotation_id: `id-${i}`,
+      highlight_location: `loc${i}`,
+      highlight_color: i % 2 ? 'yellow' : 'blue',
+      chapter,
+      favorite: false,
+      ...extra,
+    },
+    `\n## 划线\n\n> 测试摘录 ${i}\n\n## 笔记\n\n`,
+  );
+
+const setup = async (bookId?: string) => {
   const env = memoryVault();
-  for (const [i, title] of ['Book A', 'Book B'].entries()) {
-    env.put(
-      `ibooks-highlights/cards/${i}.md`,
-      writeMarkdown(
-        {
-          type: 'ibooks_highlight',
-          book_id: String(i),
-          book_title: title,
-          annotation_id: String(i),
-          highlight_index: i + 1,
-          favorite: false,
-        },
-        '\n## 划线\n\n> 测试摘录\n\n## 笔记\n\n',
-      ),
-    );
-  }
+  env.put('ibooks-highlights/cards/1.md', card(1, 'Book A', '第一章'));
+  env.put('ibooks-highlights/cards/2.md', card(2, 'Book A', '第一章'));
+  env.put('ibooks-highlights/cards/3.md', card(3, 'Book A', '第二章'));
+  env.put('ibooks-highlights/cards/4.md', card(4, 'Book B', '序'));
   const container = document.body.appendChild(document.createElement('div'));
   const refresh = async () =>
-    renderCardsBoard(env.app, container, await getHighlightCards(env.app, env.settings), {}, { onRefresh: refresh });
+    renderCardsBoard(env.app, container, await getHighlightCards(env.app, env.settings), bookId ? { bookId } : {}, { onRefresh: refresh });
   await refresh();
-  return { ...env, container, refresh };
+  const articles = () => Array.from(container.querySelectorAll<HTMLElement>('article'));
+  const button = (label: string, scope: ParentNode = container) =>
+    Array.from(scope.querySelectorAll<HTMLButtonElement>('button')).find(
+      (b) => b.getAttribute('aria-label') === label || b.textContent === label,
+    )!;
+  return { ...env, container, refresh, articles, button };
 };
-test('favorite updates one card without replacing search/filter or unrelated DOM', async () => {
-  const { container } = await setup();
-  const input = container.querySelector<HTMLInputElement>('.abkc-search')!;
+
+test('global wall defaults to a row-ordered grid with book and chapter in each card', async () => {
+  const { container, articles } = await setup();
+  expect(container.querySelector('.abkc-board')?.classList.contains('is-grid')).toBe(true);
+  expect(articles()).toHaveLength(4);
+  expect(articles()[0].querySelector('.abkc-card-source')?.textContent).toBe('#1 · Book A · 第一章');
+  expect(container.querySelector('.abkc-count')?.textContent).toBe('4 条');
+});
+
+test('book page defaults to a reading list grouped by chapter, without a book filter', async () => {
+  const { container, articles } = await setup('a');
+  expect(container.querySelector('.abkc-board')?.classList.contains('is-list')).toBe(true);
+  expect(articles()).toHaveLength(3);
+  const headers = Array.from(container.querySelectorAll('.abkc-group-header')).map((h) => h.textContent);
+  expect(headers).toEqual(['第一章2', '第二章1']);
+  expect(container.querySelector('select[aria-label="按书籍筛选"]')).toBeNull();
+  expect(container.querySelector('h2')).toBeNull();
+});
+
+test('layout toggle switches and is remembered for the next board', async () => {
+  const env = await setup('a');
+  env.button('切换为网格').click();
+  expect(env.container.querySelector('.abkc-board')?.classList.contains('is-grid')).toBe(true);
+  expect(env.container.querySelector('.abkc-group-header')).toBeNull();
+  const next = document.body.appendChild(document.createElement('div'));
+  renderCardsBoard(env.app, next, await getHighlightCards(env.app, env.settings), { bookId: 'a' });
+  expect(next.querySelector('.abkc-board')?.classList.contains('is-grid')).toBe(true);
+});
+
+test('favorite updates one card without replacing the search box or other cards', async () => {
+  const env = await setup();
+  const input = env.container.querySelector<HTMLInputElement>('.abkc-search')!;
   input.value = '测试';
   input.dispatchEvent(new Event('input'));
-  const other = container.querySelectorAll('article')[1];
-  const button = Array.from(container.querySelectorAll('article button')).find((b) => b.textContent === '收藏') as HTMLButtonElement;
-  button.click();
-  await vi.waitFor(() => expect(container.querySelector('article')?.textContent).toContain('已收藏'));
-  expect(container.querySelector('.abkc-search')).toBe(input);
+  const other = env.articles()[1];
+  env.button('收藏', env.articles()[0]).click();
+  await vi.waitFor(() => expect(env.articles()[0].querySelector('.abkc-star')?.getAttribute('aria-pressed')).toBe('true'));
+  expect(env.container.querySelector('.abkc-search')).toBe(input);
   expect(input.value).toBe('测试');
-  expect(container.querySelectorAll('article')[1]).toBe(other);
+  expect(env.articles()[1]).toBe(other);
+  expect(parseFrontmatter(env.files.get('ibooks-highlights/cards/1.md') as string).favorite).toBe(true);
 });
-test('archive filter hides removed cards from default and offers restore action', async () => {
+
+test('filters combine, show a clear button, and clearing restores the full list', async () => {
   const env = await setup();
-  const path = 'ibooks-highlights/cards/0.md';
-  const { patchProperties } = await import('../../../src/utils/markdown');
+  const clear = env.button('清除筛选');
+  expect(clear.classList.contains('abkc-hidden')).toBe(true);
+  const color = env.container.querySelector<HTMLSelectElement>('select[aria-label="按颜色筛选"]')!;
+  expect(Array.from(color.options).map((o) => o.textContent)).toEqual(['全部颜色', '黄色', '蓝色']);
+  color.value = 'yellow';
+  color.dispatchEvent(new Event('change'));
+  const book = env.container.querySelector<HTMLSelectElement>('select[aria-label="按书籍筛选"]')!;
+  book.value = 'Book A';
+  book.dispatchEvent(new Event('change'));
+  expect(env.articles().map((a) => a.dataset.annotationId)).toEqual(['id-1', 'id-3']);
+  expect(clear.classList.contains('abkc-hidden')).toBe(false);
+  clear.click();
+  expect(env.articles()).toHaveLength(4);
+  expect(color.value).toBe('');
+});
+
+test('removed highlights are a separate list with restore and delete actions', async () => {
+  const env = await setup();
+  const path = 'ibooks-highlights/cards/1.md';
   env.put(path, patchProperties(env.files.get(path) as string, { archived: true, source_removed: true }));
   await env.refresh();
-  expect(env.container.querySelectorAll('article')).toHaveLength(1);
-  const select = Array.from(env.container.querySelectorAll('select')).find((s) => s.textContent?.includes('已移除摘录'))!;
-  select.value = '已移除摘录';
-  select.dispatchEvent(new Event('change'));
-  expect(env.container.querySelector('article')?.textContent).toContain('Book A');
-  const restore = Array.from(env.container.querySelectorAll('button')).find((b) => b.textContent === '恢复')!;
-  restore.click();
-  await vi.waitFor(() => expect(env.container.querySelectorAll('article')).toHaveLength(0));
-  select.value = '';
-  select.dispatchEvent(new Event('change'));
-  expect(env.container.querySelectorAll('article')).toHaveLength(2);
+  expect(env.articles()).toHaveLength(3);
+  const note = env.container.querySelector('.abkc-callout')!;
+  expect(note.classList.contains('abkc-hidden')).toBe(true);
+  env.button('已移除').click();
+  expect(note.classList.contains('abkc-hidden')).toBe(false);
+  expect(env.articles()).toHaveLength(1);
+  expect(env.articles()[0].textContent).toContain('已移除 · 可恢复');
+  expect(env.button('删除…', env.articles()[0])).toBeTruthy();
+  env.button('恢复', env.articles()[0]).click();
+  await vi.waitFor(() => expect(env.articles()).toHaveLength(0));
+  env.button('已移除').click();
+  expect(env.articles()).toHaveLength(4);
 });
-test('embedded book scope remains constrained when toolbar filters change', async () => {
+
+test('more menu marks a card as reviewed and can pause it from daily review', async () => {
   const env = await setup();
-  const all = await getHighlightCards(env.app, env.settings);
-  renderCardsBoard(env.app, env.container, all, { bookId: '0' });
-  const search = env.container.querySelector<HTMLInputElement>('.abkc-search')!;
-  search.value = '测试';
-  search.dispatchEvent(new Event('input'));
-  expect(env.container.querySelectorAll('article')).toHaveLength(1);
-  expect(env.container.querySelector('article')?.textContent).toContain('Book A');
+  env.button('更多操作', env.articles()[0]).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  await (Menu as any).last.run('标记为已整理');
+  await vi.waitFor(() => expect(env.articles()[0].textContent).toContain('已整理'));
+  env.button('更多操作', env.articles()[0]).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  await (Menu as any).last.run('不再出现在每日回顾');
+  expect(parseFrontmatter(env.files.get('ibooks-highlights/cards/1.md') as string).review_suspended).toBe(true);
+});
+
+test('keyboard moves between cards and toggles favorite on the focused card', async () => {
+  const env = await setup();
+  env.articles()[0].focus();
+  press(env.articles()[0], 'j');
+  expect(document.activeElement).toBe(env.articles()[1]);
+  press(env.articles()[1], 'f');
+  await vi.waitFor(() => expect(parseFrontmatter(env.files.get('ibooks-highlights/cards/2.md') as string).favorite).toBe(true));
+});
+
+test('shuffle shows a random subset until filters change', async () => {
+  const env = await setup();
+  env.button('随机抽 12 条').click();
+  expect(env.container.querySelector('.abkc-count')?.textContent).toBe('随机 4 条');
+  const input = env.container.querySelector<HTMLInputElement>('.abkc-search')!;
+  input.value = '摘录 4';
+  input.dispatchEvent(new Event('input'));
+  expect(env.container.querySelector('.abkc-count')?.textContent).toBe('1 条');
+});
+
+test('long quotes collapse behind an expand control', async () => {
+  const env = memoryVault();
+  env.put('ibooks-highlights/cards/1.md', card(1, 'Book A', '第一章').replace('测试摘录 1', '长'.repeat(400)));
+  const container = document.body.appendChild(document.createElement('div'));
+  renderCardsBoard(env.app, container, await getHighlightCards(env.app, env.settings));
+  const quote = container.querySelector('.abkc-card-quote')!;
+  expect(quote.classList.contains('is-clamped')).toBe(true);
+  (container.querySelector('.abkc-card-expand') as HTMLButtonElement).click();
+  expect(quote.classList.contains('is-clamped')).toBe(false);
 });
 
 test('snapshot cards have no controls that change current or backup files', async () => {
@@ -112,9 +175,10 @@ test('snapshot cards have no controls that change current or backup files', asyn
     {},
     { onRefresh: async () => {}, readOnly: true, snapshotLabel: '备份快照 · 只读' },
   );
-  const buttons = Array.from(env.container.querySelectorAll('.abkc-card-actions button'));
-  expect(buttons).toHaveLength(0);
+  expect(env.container.querySelectorAll('.abkc-card-actions')).toHaveLength(0);
   expect(env.container.textContent).toContain('备份快照 · 只读');
+  press(env.articles()[0], 'f');
+  expect(parseFrontmatter(env.files.get('ibooks-highlights/cards/1.md') as string).favorite).toBe(false);
 });
 
 test('wiki link suggestions search by name, keep surrounding text and generate unique file paths', async () => {

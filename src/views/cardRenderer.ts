@@ -1,20 +1,19 @@
-import { Component, MarkdownRenderer, Modal, Notice, Platform, Setting, type App } from 'obsidian';
+import { Component, MarkdownRenderer, Menu, Platform, setIcon, type App } from 'obsidian';
 import type { IHighlightCard } from '../types';
-import { setHighlightFavorite, setHighlightLocalNote, setHighlightProperties, deleteArchivedCard } from '../modules/highlightRepository';
-import { cardLink } from '../utils/cardIdentity';
-import { attachNoteLinks } from './noteLinks';
+import {
+  confirmDeleteCard,
+  copyHighlight,
+  editCardNote,
+  openCardFile,
+  openCardMenu,
+  restoreCard,
+  toggleFavorite,
+  type CardActionContext,
+} from './cardActions';
+import { HIGHLIGHT_COLORS, iconButton, readPrefs, renderLines, writePrefs } from './ui';
 
 interface BoardFilters {
   bookId?: string;
-}
-
-interface ToolbarOptions {
-  initialBookTitle?: string;
-  initialArchived?: boolean;
-  initialOnlyFavorite?: boolean;
-  initialOnlyUnreviewed?: boolean;
-  initialOnlyWithAppleNote?: boolean;
-  initialOnlyWithChapter?: boolean;
 }
 
 interface RenderContext {
@@ -28,27 +27,43 @@ interface RenderContext {
   initialOnlyWithChapter?: boolean;
 }
 
-interface ToolbarState {
+type Layout = 'list' | 'grid';
+
+interface BoardPrefs {
+  showThought: boolean;
+  showNote: boolean;
+  clampLong: boolean;
+  bookLayout: Layout;
+  allLayout: Layout;
+}
+
+interface BoardState {
   query: string;
   archived: boolean;
   bookTitle: string;
-  bookAuthor: string;
   chapter: string;
   color: string;
   onlyFavorite: boolean;
   onlyUnreviewed: boolean;
-  onlyWithAppleNote: boolean;
+  onlyWithThought: boolean;
   onlyWithChapter: boolean;
+  random: string[] | null;
 }
 
-// Rendering preferences toggled from the toolbar (not filters — they only affect how each card looks).
-interface RenderOptions {
-  showAppleNote: boolean;
-  showLocalNote: boolean;
-  maxChars: number;
+interface CardOptions {
+  layout: Layout;
+  scoped: boolean;
+  showThought: boolean;
+  showNote: boolean;
+  clampLong: boolean;
+  readOnly: boolean;
 }
 
-const DEFAULT_MAX_CHARS = 500;
+const DEFAULT_PREFS: BoardPrefs = { showThought: true, showNote: true, clampLong: true, bookLayout: 'list', allLayout: 'grid' };
+const LONG_QUOTE = 280;
+const RANDOM_SIZE = 12;
+const GRID_MIN_WIDTH = 280;
+const GRID_GAP = 12;
 
 const noteComponents = new Map<HTMLElement, Component>();
 const releaseCard = (el: HTMLElement) => {
@@ -59,612 +74,218 @@ const releaseCard = (el: HTMLElement) => {
 const boundTocDocuments = new WeakSet<Document>();
 const boundTocCleanups: Array<() => void> = [];
 
-const colorLabelMap: Record<string, string> = {
-  underline: '下划线',
-  green: '绿色',
-  blue: '蓝色',
-  yellow: '黄色',
-  pink: '粉色',
-  purple: '紫色',
-  plain: '普通',
+const initialState = (context: RenderContext, bookTitle: string): BoardState => ({
+  query: '',
+  archived: Boolean(context.initialArchived),
+  bookTitle,
+  chapter: '',
+  color: '',
+  onlyFavorite: Boolean(context.initialOnlyFavorite),
+  onlyUnreviewed: Boolean(context.initialOnlyUnreviewed),
+  onlyWithThought: Boolean(context.initialOnlyWithAppleNote),
+  onlyWithChapter: Boolean(context.initialOnlyWithChapter),
+  random: null,
+});
+
+const filterCards = (cards: IHighlightCard[], state: BoardState): IHighlightCard[] => {
+  const query = state.query.trim().toLowerCase();
+  return cards.filter(
+    (card) =>
+      Boolean(card.archived) === state.archived &&
+      (!state.bookTitle || card.bookTitle === state.bookTitle) &&
+      (!state.chapter || card.chapter === state.chapter) &&
+      (!state.color || card.highlightColor === state.color) &&
+      (!state.onlyFavorite || card.favorite) &&
+      (!state.onlyUnreviewed || !card.reviewed) &&
+      (!state.onlyWithThought || card.appleNote.trim() || card.localNote.trim()) &&
+      (!state.onlyWithChapter || card.chapter.trim()) &&
+      (!query ||
+        [card.highlight, card.appleNote, card.localNote, card.bookTitle, card.bookAuthor, card.chapter]
+          .join('\n')
+          .toLowerCase()
+          .includes(query)),
+  );
 };
 
-const showNotice = (message: string): void => {
-  const notice = new Notice(message);
-  void notice;
-};
+const uniqueValues = (cards: IHighlightCard[], pick: (card: IHighlightCard) => string): string[] =>
+  Array.from(new Set(cards.map(pick).filter(Boolean))).sort((a, b) => a.localeCompare(b));
 
-const applyFilters = (cards: IHighlightCard[], filters: BoardFilters): IHighlightCard[] => {
-  return cards.filter((card) => {
-    if (filters.bookId && card.bookId !== filters.bookId) {
-      return false;
-    }
+// ---------- Note TOC links in the book page scroll to the matching card ----------
 
-    return true;
-  });
-};
-
-const getBookTitleFromFilter = (cards: IHighlightCard[], filters: BoardFilters): string => {
-  if (!filters.bookId) {
-    return '';
-  }
-
-  return cards.find((card) => card.bookId === filters.bookId)?.bookTitle || '';
-};
-
-const getUniqueValues = (cards: IHighlightCard[], getValue: (card: IHighlightCard) => string): string[] => {
-  return Array.from(new Set(cards.map(getValue).filter(Boolean))).sort((a, b) => a.localeCompare(b));
-};
-
-const applyToolbarState = (cards: IHighlightCard[], state: ToolbarState): IHighlightCard[] => {
-  let filteredCards = cards.filter((card) => Boolean(card.archived) === state.archived);
-
-  if (state.query) {
-    filteredCards = filteredCards.filter((card) => {
-      return [card.highlight, card.appleNote, card.localNote, card.bookTitle, card.bookAuthor, card.chapter]
-        .join('\n')
-        .toLowerCase()
-        .includes(state.query);
-    });
-  }
-
-  if (state.bookTitle) {
-    filteredCards = filteredCards.filter((card) => card.bookTitle === state.bookTitle);
-  }
-
-  if (state.bookAuthor) {
-    filteredCards = filteredCards.filter((card) => card.bookAuthor === state.bookAuthor);
-  }
-
-  if (state.chapter) {
-    filteredCards = filteredCards.filter((card) => card.chapter === state.chapter);
-  }
-
-  if (state.color) {
-    filteredCards = filteredCards.filter((card) => card.highlightColor === state.color);
-  }
-
-  if (state.onlyFavorite) {
-    filteredCards = filteredCards.filter((card) => card.favorite);
-  }
-
-  if (state.onlyUnreviewed) {
-    filteredCards = filteredCards.filter((card) => !card.reviewed);
-  }
-
-  if (state.onlyWithAppleNote) {
-    filteredCards = filteredCards.filter((card) => card.appleNote.trim());
-  }
-
-  if (state.onlyWithChapter) {
-    filteredCards = filteredCards.filter((card) => card.chapter.trim());
-  }
-
-  return filteredCards;
-};
-
-const renderInlineHighlight = (container: HTMLElement, text: string): void => {
-  const lines = text.split('\n');
-
-  lines.forEach((line, index) => {
-    if (index > 0) {
-      container.createEl('br');
-    }
-
-    container.createSpan({ text: line, cls: 'abkc-highlight-text' });
-  });
-};
-
-// Cap a card's text length; <= 0 means no limit. Full text is always available on the card's own page.
-const truncate = (text: string, maxChars: number): string => {
-  if (maxChars <= 0 || text.length <= maxChars) {
-    return text;
-  }
-
-  return `${text.slice(0, maxChars).trimEnd()}…`;
-};
-
-const getTocHighlightIndex = (link: HTMLAnchorElement): string | null => {
-  const hrefIndex = decodeURIComponent(link.getAttribute('href') || '').match(/摘录-?(\d+)/)?.[1];
-
-  if (hrefIndex) {
-    return hrefIndex;
-  }
-
-  return link.textContent?.match(/\d+/)?.[0] || null;
-};
+const getTocHighlightIndex = (link: HTMLAnchorElement): string | null =>
+  decodeURIComponent(link.getAttribute('href') || '').match(/摘录-?(\d+)/)?.[1] || link.textContent?.match(/\d+/)?.[0] || null;
 
 const focusCard = (target: HTMLElement): void => {
-  target.scrollIntoView({
-    block: 'center',
-    inline: 'nearest',
-    behavior: 'smooth',
-  });
+  target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
   target.classList.add('abkc-card-focus');
-  window.setTimeout(() => {
-    target.classList.remove('abkc-card-focus');
-  }, 1400);
-};
-
-const getTocScope = (link: HTMLAnchorElement): ParentNode => {
-  return link.closest('.markdown-preview-view, .markdown-rendered, .markdown-source-view, .workspace-leaf-content') || link.ownerDocument;
+  window.setTimeout(() => target.classList.remove('abkc-card-focus'), 1400);
 };
 
 const bindNoteToc = (container: HTMLElement): void => {
   const doc = container.ownerDocument;
-
-  if (boundTocDocuments.has(doc)) {
-    return;
-  }
-
+  if (boundTocDocuments.has(doc)) return;
   boundTocDocuments.add(doc);
-
   const handler = (event: MouseEvent) => {
     const link = (event.target as HTMLElement | null)?.closest<HTMLAnchorElement>('.abkc-note-toc a, a[href^="#摘录"]');
-
-    if (!link) {
-      return;
-    }
-
-    const highlightIndex = getTocHighlightIndex(link);
-
-    if (!highlightIndex) {
-      return;
-    }
-
-    const scope = getTocScope(link);
+    const highlightIndex = link && getTocHighlightIndex(link);
+    if (!link || !highlightIndex) return;
+    const scope: ParentNode =
+      link.closest('.markdown-preview-view, .markdown-rendered, .markdown-source-view, .workspace-leaf-content') || link.ownerDocument;
     if (scope.querySelectorAll('.abkc-board').length !== 1) return;
     const target = scope.querySelector<HTMLElement>(`.abkc-root [data-highlight-index="${CSS.escape(highlightIndex)}"]`);
-
-    if (!target) {
-      return;
-    }
-
+    if (!target) return;
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation();
     focusCard(target);
   };
-
   doc.addEventListener('click', handler, true);
-
   boundTocCleanups.push(() => {
     doc.removeEventListener('click', handler, true);
     boundTocDocuments.delete(doc);
   });
 };
 
-const createSelect = (
-  container: HTMLElement,
-  placeholder: string,
-  values: string[],
-  onChange: (value: string) => void,
-): HTMLSelectElement => {
-  const select = container.createEl('select', { cls: 'abkc-select' });
-  select.createEl('option', { text: placeholder, value: '' });
+// ---------- Card ----------
 
-  for (const value of values) {
-    select.createEl('option', { text: value, value });
-  }
-
-  select.addEventListener('change', () => {
-    onChange(select.value);
-  });
-
-  return select;
-};
-
-const setSelectOptions = (select: HTMLSelectElement, placeholder: string, values: string[]): void => {
-  const signature = JSON.stringify([placeholder, values]);
-  if (select.dataset.options === signature) return;
-  select.dataset.options = signature;
-  const previousValue = select.value;
-
-  select.empty();
-  select.createEl('option', { text: placeholder, value: '' });
-
-  for (const value of values) {
-    select.createEl('option', { text: value, value });
-  }
-
-  if (previousValue && !values.includes(previousValue)) select.createEl('option', { text: previousValue, value: previousValue });
-  select.value = previousValue;
-};
-
-const createToggle = (container: HTMLElement, label: string, onChange: (enabled: boolean) => void): HTMLLabelElement => {
-  const wrapper = container.createEl('label', { cls: 'abkc-toggle' });
-  const checkbox = wrapper.createEl('input', {
-    attr: {
-      type: 'checkbox',
-    },
-  });
-  wrapper.createSpan({ text: label });
-  checkbox.addEventListener('change', () => {
-    onChange(checkbox.checked);
-  });
-
-  return wrapper;
-};
-
-const renderToolbar = (
-  container: HTMLElement,
-  cards: IHighlightCard[],
-  onFilter: (filteredCards: IHighlightCard[]) => void,
-  filters: BoardFilters,
-  renderOptions: RenderOptions,
-  options: ToolbarOptions = {},
-) => {
-  const toolbar = container.createDiv({ cls: 'abkc-toolbar' });
-  const searchGroup = toolbar.createDiv({ cls: 'abkc-toolbar-group abkc-toolbar-search-group' });
-  const filtersGroup = toolbar.createDiv({ cls: 'abkc-toolbar-group abkc-toolbar-filters-group' });
-  const togglesGroup = toolbar.createDiv({ cls: 'abkc-toolbar-group abkc-toolbar-toggles-group' });
-  const actionsGroup = toolbar.createDiv({ cls: 'abkc-toolbar-group abkc-toolbar-actions-group' });
-  const state: ToolbarState = {
-    query: '',
-    archived: Boolean(options.initialArchived),
-    bookTitle: options.initialBookTitle || '',
-    bookAuthor: '',
-    chapter: '',
-    color: '',
-    onlyFavorite: Boolean(options.initialOnlyFavorite),
-    onlyUnreviewed: Boolean(options.initialOnlyUnreviewed),
-    onlyWithAppleNote: Boolean(options.initialOnlyWithAppleNote),
-    onlyWithChapter: Boolean(options.initialOnlyWithChapter),
-  };
-  const searchInput = searchGroup.createEl('input', {
-    cls: 'abkc-search',
-    attr: {
-      type: 'search',
-      placeholder: '搜索摘录、书名、作者、章节',
-    },
-  });
-  const getChapterSourceCards = (): IHighlightCard[] => {
-    return cards.filter((card) => {
-      if (state.bookTitle && card.bookTitle !== state.bookTitle) {
-        return false;
-      }
-
-      if (state.bookAuthor && card.bookAuthor !== state.bookAuthor) {
-        return false;
-      }
-
-      return true;
-    });
-  };
-
-  const updateChapterOptions = () => {
-    setSelectOptions(
-      chapterSelect,
-      '全部章节',
-      getUniqueValues(getChapterSourceCards(), (card) => card.chapter),
-    );
-    state.chapter = chapterSelect.value;
-  };
-
-  const bookSelect = createSelect(
-    filtersGroup,
-    '全部书籍',
-    getUniqueValues(cards, (card) => card.bookTitle),
-    (value) => {
-      state.bookTitle = value;
-      updateChapterOptions();
-      runFilter();
-    },
-  );
-  bookSelect.value = state.bookTitle;
-  const authorSelect = createSelect(
-    filtersGroup,
-    '全部作者',
-    getUniqueValues(cards, (card) => card.bookAuthor),
-    (value) => {
-      state.bookAuthor = value;
-      updateChapterOptions();
-      runFilter();
-    },
-  );
-  const chapterSelect = createSelect(
-    filtersGroup,
-    '全部章节',
-    getUniqueValues(getChapterSourceCards(), (card) => card.chapter),
-    (value) => {
-      state.chapter = value;
-      runFilter();
-    },
-  );
-  const colorSelect = createSelect(filtersGroup, '全部颜色', Object.values(colorLabelMap), () => {});
-  colorSelect.empty();
-  colorSelect.createEl('option', { text: '全部颜色', value: '' });
-  for (const [value, label] of Object.entries(colorLabelMap)) {
-    colorSelect.createEl('option', { text: label, value });
-  }
-  colorSelect.addEventListener('change', () => {
-    state.color = colorSelect.value;
-    runFilter();
-  });
-  const archiveSelect = createSelect(filtersGroup, '正常摘录', ['已移除摘录'], (value) => {
-    state.archived = value === '已移除摘录';
-    runFilter();
-  });
-  archiveSelect.value = state.archived ? '已移除摘录' : '';
-  const favoriteToggle = createToggle(togglesGroup, '只看收藏', (enabled) => {
-    state.onlyFavorite = enabled;
-    runFilter();
-  });
-  favoriteToggle.querySelector<HTMLInputElement>('input')!.checked = state.onlyFavorite;
-  const unreviewedToggle = createToggle(togglesGroup, '只看未整理', (enabled) => {
-    state.onlyUnreviewed = enabled;
-    runFilter();
-  });
-  unreviewedToggle.querySelector<HTMLInputElement>('input')!.checked = state.onlyUnreviewed;
-
-  const showAppleToggle = createToggle(togglesGroup, '显示想法', (enabled) => {
-    renderOptions.showAppleNote = enabled;
-    runFilter();
-  });
-  showAppleToggle.querySelector<HTMLInputElement>('input')!.checked = renderOptions.showAppleNote;
-
-  const showNoteToggle = createToggle(togglesGroup, '显示笔记', (enabled) => {
-    renderOptions.showLocalNote = enabled;
-    runFilter();
-  });
-  showNoteToggle.querySelector<HTMLInputElement>('input')!.checked = renderOptions.showLocalNote;
-
-  const charLimit = togglesGroup.createEl('label', { cls: 'abkc-char-limit' });
-  charLimit.createSpan({ text: '字数上限' });
-  const charLimitInput = charLimit.createEl('input', {
-    cls: 'abkc-char-limit-input',
-    attr: { type: 'number', min: '0', step: '50' },
-  });
-  charLimitInput.value = String(renderOptions.maxChars);
-  charLimitInput.addEventListener('change', () => {
-    const value = Number(charLimitInput.value);
-    renderOptions.maxChars = Number.isFinite(value) && value >= 0 ? value : DEFAULT_MAX_CHARS;
-    charLimitInput.value = String(renderOptions.maxChars);
-    runFilter();
-  });
-
-  const randomButton = actionsGroup.createEl('button', {
-    text: '随机一组',
-    cls: 'abkc-button',
-  });
-  let randomPaths: string[] | null = null;
-  const runFilter = () => {
-    randomPaths = null;
-    state.query = searchInput.value.trim().toLowerCase();
-    onFilter(applyToolbarState(applyFilters(cards, filters), state));
-  };
-
-  searchInput.addEventListener('input', runFilter);
-  searchInput.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {
-      runFilter();
-    }
-  });
-  randomButton.addEventListener('click', () => {
-    const filteredCards = applyToolbarState(applyFilters(cards, filters), state);
-    const shuffledCards = [...filteredCards];
-    for (let i = shuffledCards.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffledCards[i], shuffledCards[j]] = [shuffledCards[j], shuffledCards[i]];
-    }
-    shuffledCards.splice(12);
-    randomPaths = shuffledCards.map((card) => card.path);
-    onFilter(shuffledCards);
-  });
-  const resetButton = actionsGroup.createEl('button', {
-    text: '重置筛选',
-    cls: 'abkc-button',
-  });
-  resetButton.addEventListener('click', () => {
-    state.query = '';
-    state.archived = Boolean(options.initialArchived);
-    archiveSelect.value = state.archived ? '已移除摘录' : '';
-    state.bookTitle = options.initialBookTitle || '';
-    state.bookAuthor = '';
-    state.chapter = '';
-    state.color = '';
-    state.onlyFavorite = Boolean(options.initialOnlyFavorite);
-    state.onlyUnreviewed = Boolean(options.initialOnlyUnreviewed);
-    state.onlyWithAppleNote = Boolean(options.initialOnlyWithAppleNote);
-    state.onlyWithChapter = Boolean(options.initialOnlyWithChapter);
-    searchInput.value = '';
-    bookSelect.value = state.bookTitle;
-    authorSelect.value = '';
-    colorSelect.value = '';
-    favoriteToggle.querySelector<HTMLInputElement>('input')!.checked = state.onlyFavorite;
-    unreviewedToggle.querySelector<HTMLInputElement>('input')!.checked = state.onlyUnreviewed;
-    updateChapterOptions();
-    onFilter(applyToolbarState(applyFilters(cards, filters), state));
-  });
-  return () => {
-    setSelectOptions(
-      bookSelect,
-      '全部书籍',
-      getUniqueValues(cards, (c) => c.bookTitle),
-    );
-    setSelectOptions(
-      authorSelect,
-      '全部作者',
-      getUniqueValues(cards, (c) => c.bookAuthor),
-    );
-    // Retain the filter value even when it currently has no matching cards.
-    updateChapterOptions();
-    const filtered = applyToolbarState(applyFilters(cards, filters), state);
-    const byPath = new Map(filtered.map((card) => [card.path, card]));
-    onFilter(randomPaths ? randomPaths.map((path) => byPath.get(path)).filter((card): card is IHighlightCard => Boolean(card)) : filtered);
-  };
-};
-
-class EditNoteModal extends Modal {
-  private disposeLinks?: () => void;
-  private card: IHighlightCard;
-  private onSave: (note: string) => Promise<void>;
-
-  constructor(app: App, card: IHighlightCard, onSave: (note: string) => Promise<void>) {
-    super(app);
-    this.card = card;
-    this.onSave = onSave;
-  }
-
-  onOpen(): void {
-    const { contentEl } = this;
-    contentEl.empty();
-    contentEl.createEl('h2', { text: `编辑笔记：摘录 ${this.card.highlightIndex}` });
-    contentEl.createEl('p', { text: this.card.bookTitle, cls: 'abkc-modal-muted' });
-    const textarea = contentEl.createEl('textarea', { cls: 'abkc-note-editor' });
-    textarea.value = this.card.localNote;
-    contentEl.createEl('p', { text: '输入 [[ 后搜索笔记，↑↓选择、回车插入。保存后会建立原生双向链接。' });
-    this.disposeLinks = attachNoteLinks(this.app, textarea, contentEl, this.card.path);
-
-    new Setting(contentEl)
-      .addButton((button) => {
-        button
-          .setButtonText('保存')
-          .setCta()
-          .onClick(async () => {
-            try {
-              await this.onSave(textarea.value);
-              this.close();
-            } catch (error) {
-              showNotice(`保存失败：${error instanceof Error ? error.message : String(error)}`);
-            }
-          });
-      })
-      .addButton((button) => {
-        button.setButtonText('取消').onClick(() => {
-          this.close();
-        });
-      });
-  }
-
-  onClose(): void {
-    this.disposeLinks?.();
-    this.contentEl.empty();
-  }
-}
-
-const renderCard = (app: App, board: HTMLElement, card: IHighlightCard, context: RenderContext, options: RenderOptions) => {
-  const cardEl = board.createEl('article', {
-    cls: `abkc-card abkc-card-${card.highlightColor}`,
+const renderCard = (actions: CardActionContext, card: IHighlightCard, options: CardOptions): HTMLElement => {
+  const cardEl = createEl('article', {
+    cls: `abkc-card is-${options.layout}`,
     attr: {
       id: card.annotationId,
+      tabindex: '0',
+      'data-color': card.highlightColor,
       'data-annotation-id': card.annotationId,
       'data-highlight-index': String(card.highlightIndex),
     },
   });
-  const header = cardEl.createDiv({ cls: 'abkc-card-header' });
-  if (card.sourceKey) {
-    header.createEl('a', {
-      text: 'Apple Books',
-      href: card.sourceKey,
-      cls: 'abkc-card-brand abkc-card-brand-link',
+  if (options.layout === 'list') cardEl.createDiv({ text: String(card.highlightIndex), cls: 'abkc-card-index' });
+  const main = cardEl.createDiv({ cls: 'abkc-card-main' });
+
+  const quote = main.createDiv({ cls: 'abkc-card-quote' });
+  renderLines(quote, card.highlight);
+  if (options.clampLong && card.highlight.length > LONG_QUOTE) {
+    quote.addClass('is-clamped');
+    const expand = main.createEl('button', { text: '展开全文', cls: 'abkc-card-expand', attr: { type: 'button' } });
+    expand.addEventListener('click', () => {
+      const clamped = quote.classList.toggle('is-clamped');
+      expand.setText(clamped ? '展开全文' : '收起');
     });
-  } else {
-    header.createDiv({ text: 'Apple Books', cls: 'abkc-card-brand' });
-  }
-  header.createDiv({ text: 'Note Receipt', cls: 'abkc-card-title' });
-  cardEl.createDiv({ cls: 'abkc-card-rule' });
-  cardEl.createDiv({ text: `摘录 ${card.highlightIndex}`, cls: 'abkc-card-index' });
-
-  if (card.chapter) {
-    cardEl.createDiv({ text: card.chapter, cls: 'abkc-card-chapter' });
   }
 
-  const highlightEl = cardEl.createDiv({ cls: 'abkc-card-highlight' });
-  renderInlineHighlight(highlightEl, truncate(card.highlight, options.maxChars));
-
-  if (options.showAppleNote && card.appleNote) {
-    const note = cardEl.createDiv({ cls: 'abkc-card-note' });
-    note.createDiv({ text: 'Apple Books 想法', cls: 'abkc-card-label' });
-    note.createDiv({ text: truncate(card.appleNote, options.maxChars) });
+  if (options.showThought && card.appleNote.trim()) {
+    const thought = main.createDiv({ cls: 'abkc-card-annotation is-thought' });
+    thought.createDiv({ text: 'Apple Books 想法', cls: 'abkc-card-label' });
+    renderLines(thought.createDiv(), card.appleNote.trim());
   }
 
-  if (options.showLocalNote && card.localNote.trim()) {
-    const localNoteEl = cardEl.createDiv({ cls: 'abkc-card-note abkc-card-localnote' });
-    localNoteEl.createDiv({ text: '我的笔记', cls: 'abkc-card-label' });
+  if (options.showNote && card.localNote.trim()) {
+    const note = main.createDiv({ cls: 'abkc-card-annotation is-note' });
+    note.createDiv({ text: '我的笔记', cls: 'abkc-card-label' });
     const component = new Component();
     component.load();
     noteComponents.set(cardEl, component);
-    void MarkdownRenderer.render(app, card.localNote, localNoteEl.createDiv(), card.path, component);
+    void MarkdownRenderer.render(actions.app, card.localNote, note.createDiv({ cls: 'abkc-card-note-body' }), card.path, component);
   }
 
-  cardEl.createDiv({ cls: 'abkc-card-rule' });
-  const meta = cardEl.createDiv({ cls: 'abkc-card-meta' });
-  meta.createDiv({ text: card.bookTitle });
-
-  if (card.sourceRemoved)
-    cardEl.createDiv({ text: card.archived ? '已移除摘录 · 可恢复' : 'Apple Books 中已移除 · 已保留整理成果', cls: 'abkc-source-status' });
-  const actions = cardEl.createDiv({ cls: 'abkc-card-actions' });
-  if (context.readOnly) {
-    actions.createDiv({ text: '备份快照 · 只读', cls: 'abkc-source-status' });
-    return cardEl;
+  const metaParts =
+    options.layout === 'grid' ? [`#${card.highlightIndex}`, options.scoped ? '' : card.bookTitle, card.chapter].filter(Boolean) : [];
+  const badges: Array<[string, string]> = [];
+  if (card.reviewed) badges.push(['已整理', 'check']);
+  if (card.sourceRemoved) badges.push([card.archived ? '已移除 · 可恢复' : 'Apple Books 中已删除 · 已保留', 'unlink']);
+  if (metaParts.length || badges.length) {
+    const meta = main.createDiv({ cls: 'abkc-card-meta' });
+    if (metaParts.length) meta.createSpan({ text: metaParts.join(' · '), cls: 'abkc-card-source' });
+    for (const [text, icon] of badges) {
+      const badge = meta.createSpan({ cls: 'abkc-badge' });
+      setIcon(badge.createSpan({ cls: 'abkc-badge-icon' }), icon);
+      badge.appendText(text);
+    }
   }
-  actions.createEl('button', { text: '复制摘录链接', cls: 'abkc-action-button' }).addEventListener('click', async () => {
-    await navigator.clipboard.writeText(cardLink(card.path, `${card.bookTitle} · ${card.highlight.slice(0, 28)}`));
-    showNotice('已复制链接，可粘贴到其他笔记');
-  });
-  actions.createEl('button', { text: card.favorite ? '已收藏' : '收藏', cls: 'abkc-action-button' }).addEventListener('click', async () => {
-    await setHighlightFavorite(app, card, !card.favorite);
-    showNotice(!card.favorite ? '已收藏摘录' : '已取消收藏');
-    await context.onRefresh();
-  });
-  actions.createEl('button', { text: '编辑', cls: 'abkc-action-button' }).addEventListener('click', () => {
-    new EditNoteModal(app, card, async (note) => {
-      await setHighlightLocalNote(app, card, note, card.localNote);
-      showNotice('笔记已写回摘录文件');
-      await context.onRefresh();
-    }).open();
-  });
-  actions
-    .createEl('button', { text: card.reviewed ? '已整理' : '标记已整理', cls: 'abkc-action-button' })
-    .addEventListener('click', async () => {
-      await setHighlightProperties(app, card, { reviewed: !card.reviewed });
-      await context.onRefresh();
-    });
 
+  if (options.readOnly) return cardEl;
+  const bar = cardEl.createDiv({ cls: 'abkc-card-actions' });
   if (card.archived) {
-    actions.createEl('button', { text: '恢复', cls: 'abkc-action-button' }).addEventListener('click', async () => {
-      await setHighlightProperties(app, card, { archived: false, restored: true });
-      await context.onRefresh();
+    bar.createEl('button', { text: '恢复', cls: 'abkc-text-button', attr: { type: 'button' } }).addEventListener('click', () => {
+      void restoreCard(actions, card);
     });
-    actions.createEl('button', { text: '彻底删除…', cls: 'abkc-action-button' }).addEventListener('click', () => {
-      new DeleteCardModal(app, card, context.onRefresh).open();
-    });
+    bar
+      .createEl('button', { text: '删除…', cls: 'abkc-text-button mod-warning', attr: { type: 'button' } })
+      .addEventListener('click', () => {
+        confirmDeleteCard(actions, card);
+      });
+  } else {
+    const star = iconButton(bar, 'star', card.favorite ? '取消收藏' : '收藏', `abkc-star${card.favorite ? ' is-active' : ''}`);
+    star.setAttr('aria-pressed', String(card.favorite));
+    star.addEventListener('click', () => void toggleFavorite(actions, card));
+    iconButton(bar, 'pencil', '编辑笔记').addEventListener('click', () => editCardNote(actions, card));
   }
-  actions.createEl('button', { text: '复制', cls: 'abkc-action-button' }).addEventListener('click', async () => {
-    await navigator.clipboard.writeText(`> ${card.highlight}\n\n— ${card.bookTitle}`);
-    showNotice('摘录已复制到剪贴板');
-  });
-  actions.createEl('button', { text: '打开', cls: 'abkc-action-button' }).addEventListener('click', async () => {
-    window.sessionStorage.setItem('abkc:last-card', card.annotationId);
-    await app.workspace.openLinkText(card.path, '', true);
+  iconButton(bar, 'more-horizontal', '更多操作').addEventListener('click', (event) => {
+    openCardMenu(actions, card, event);
   });
   return cardEl;
 };
 
+// Rough rendered height in lines, used to balance grid columns without measuring layout.
+const estimateLines = (card: IHighlightCard, options: CardOptions): number => {
+  const lines = (text: string, perLine: number) => Math.ceil(text.length / perLine) + (text.match(/\n/g)?.length ?? 0);
+  const quote = options.clampLong && card.highlight.length > LONG_QUOTE ? 8 : lines(card.highlight, 20);
+  const thought = options.showThought && card.appleNote.trim() ? 2 + lines(card.appleNote.trim(), 26) : 0;
+  const note = options.showNote && card.localNote.trim() ? 2 + lines(card.localNote.trim(), 26) : 0;
+  return 4 + quote + thought + note;
+};
+
+// ---------- Toolbar ----------
+
+const pillSelect = (parent: HTMLElement, label: string, onChange: (value: string) => void): HTMLSelectElement => {
+  const select = parent.createEl('select', { cls: 'abkc-pill dropdown', attr: { 'aria-label': label } });
+  select.addEventListener('change', () => {
+    select.toggleClass('is-active', Boolean(select.value));
+    onChange(select.value);
+  });
+  return select;
+};
+
+const setOptions = (select: HTMLSelectElement, placeholder: string, options: Array<[string, string]>, value: string): void => {
+  const signature = JSON.stringify([placeholder, options, value]);
+  if (select.dataset.options !== signature) {
+    select.dataset.options = signature;
+    select.empty();
+    select.createEl('option', { text: placeholder, value: '' });
+    for (const [optionValue, label] of options) select.createEl('option', { text: label, value: optionValue });
+    // Keep a chosen value even if no card currently matches it.
+    if (value && !options.some(([optionValue]) => optionValue === value)) select.createEl('option', { text: value, value });
+  }
+  select.value = value;
+  select.toggleClass('is-active', Boolean(value));
+};
+
+const chip = (parent: HTMLElement, label: string, icon: string, onToggle: () => void): HTMLButtonElement => {
+  const button = parent.createEl('button', { cls: 'abkc-pill abkc-chip', attr: { type: 'button', 'aria-pressed': 'false' } });
+  setIcon(button.createSpan({ cls: 'abkc-chip-icon' }), icon);
+  button.appendText(label);
+  button.addEventListener('click', onToggle);
+  return button;
+};
+
+// ---------- Board ----------
+
 const boardControllers = new WeakMap<HTMLElement, { key: string; update: (cards: IHighlightCard[]) => void }>();
-class DeleteCardModal extends Modal {
-  constructor(
-    app: App,
-    private card: IHighlightCard,
-    private refresh: () => Promise<void>,
-  ) {
-    super(app);
+const resizeObservers = new WeakMap<HTMLElement, ResizeObserver>();
+
+// Keep `parent`'s children exactly `elements`, moving only what is out of place.
+const place = (parent: HTMLElement, elements: HTMLElement[]): void => {
+  let cursor = parent.firstElementChild;
+  for (const element of elements) {
+    if (element !== cursor) parent.insertBefore(element, cursor);
+    cursor = element.nextElementSibling;
   }
-  onOpen(): void {
-    this.contentEl.createEl('h2', { text: '删除这条已移除摘录？' });
-    this.contentEl.createEl('p', { text: '文件将按 Obsidian 的删除设置放入回收站。此操作不会修改 Apple Books。' });
-    new Setting(this.contentEl)
-      .addButton((b) =>
-        b.setButtonText('删除摘录文件').onClick(async () => {
-          await deleteArchivedCard(this.app, this.card);
-          await this.refresh();
-          this.close();
-        }),
-      )
-      .addButton((b) => b.setButtonText('取消').onClick(() => this.close()));
+  while (cursor) {
+    const next = cursor.nextElementSibling;
+    cursor.remove();
+    cursor = next;
   }
-}
+};
 
 export const renderCardsBoard = (
   app: App,
@@ -688,119 +309,316 @@ export const renderCardsBoard = (
     controller.update(cards);
     return;
   }
-  cards = [...cards];
+
   for (const el of Array.from(container.querySelectorAll<HTMLElement>('.abkc-card'))) releaseCard(el);
+  resizeObservers.get(container)?.disconnect();
   container.empty();
   container.addClass('abkc-root');
   container.toggleClass('abkc-mobile', Platform.isMobile);
-  container.toggleClass('abkc-phone', Platform.isPhone);
-  container.toggleClass('abkc-tablet', Platform.isTablet);
-  const title = container.createDiv({ cls: 'abkc-title' });
-  if (!filters.bookId) {
-    title.createEl('h2', { text: 'Apple Books 摘录' });
-  }
-  if (context.snapshotLabel) title.createDiv({ text: context.snapshotLabel, cls: 'abkc-source-status' });
-  const titleMeta = title.createDiv({ cls: 'abkc-title-meta' });
-  if (context.initialOnlyWithAppleNote) {
-    titleMeta.createSpan({ text: '想法', cls: 'abkc-filter-chip' });
-  }
-  if (context.initialOnlyFavorite) {
-    titleMeta.createSpan({ text: '收藏', cls: 'abkc-filter-chip' });
-  }
-  if (context.initialOnlyWithChapter) {
-    titleMeta.createSpan({ text: '章节', cls: 'abkc-filter-chip' });
-  }
-  if (context.initialOnlyUnreviewed) {
-    titleMeta.createSpan({ text: '未整理', cls: 'abkc-filter-chip' });
-  }
-  const countEl = titleMeta.createSpan({ text: `${applyFilters(cards, filters).length} 张卡片`, cls: 'abkc-count' });
 
-  const toolbarHost = container.createDiv();
+  let all = [...cards];
+  const scoped = Boolean(filters.bookId);
+  const inScope = () => all.filter((card) => !filters.bookId || card.bookId === filters.bookId);
+  const prefs = readPrefs<BoardPrefs>('board', DEFAULT_PREFS);
+  const layout = (): Layout => (scoped ? prefs.bookLayout : prefs.allLayout);
+  const state = initialState(context, '');
+  const actions: CardActionContext = { app, refresh: context.onRefresh };
+
+  if (!scoped || context.snapshotLabel) {
+    const header = container.createDiv({ cls: 'abkc-board-header' });
+    if (!scoped) header.createEl('h2', { text: context.initialArchived ? '已移除摘录' : '摘录' });
+    if (context.snapshotLabel) {
+      const snapshot = header.createDiv({ cls: 'abkc-snapshot' });
+      setIcon(snapshot.createSpan(), 'history');
+      snapshot.appendText(context.snapshotLabel);
+    }
+  }
+
+  const toolbar = container.createDiv({ cls: 'abkc-toolbar' });
+  const search = toolbar.createEl('input', {
+    cls: 'abkc-search',
+    attr: { type: 'search', placeholder: scoped ? '搜索这本书的摘录' : '搜索摘录、书名、作者', 'aria-label': '搜索摘录' },
+  });
+  const filtersEl = toolbar.createDiv({ cls: 'abkc-toolbar-filters' });
+  const bookSelect = scoped
+    ? null
+    : pillSelect(filtersEl, '按书籍筛选', (value) => {
+        state.bookTitle = value;
+        state.chapter = '';
+        update();
+      });
+  const chapterSelect = pillSelect(filtersEl, '按章节筛选', (value) => {
+    state.chapter = value;
+    update();
+  });
+  const colorSelect = pillSelect(filtersEl, '按颜色筛选', (value) => {
+    state.color = value;
+    update();
+  });
+  const toggles: Array<[HTMLButtonElement, keyof BoardState]> = [
+    [chip(filtersEl, '收藏', 'star', () => flip('onlyFavorite')), 'onlyFavorite'],
+    [chip(filtersEl, '未整理', 'circle-dashed', () => flip('onlyUnreviewed')), 'onlyUnreviewed'],
+    [chip(filtersEl, '有想法', 'message-square', () => flip('onlyWithThought')), 'onlyWithThought'],
+    [chip(filtersEl, '已移除', 'archive', () => flip('archived')), 'archived'],
+  ];
+  const tools = toolbar.createDiv({ cls: 'abkc-toolbar-tools' });
+  const countEl = tools.createSpan({ cls: 'abkc-count' });
+  const clearButton = tools.createEl('button', { text: '清除筛选', cls: 'abkc-text-button', attr: { type: 'button' } });
+  const shuffleButton = iconButton(tools, 'shuffle', `随机抽 ${RANDOM_SIZE} 条`);
+  const layoutButton = iconButton(tools, 'layout-grid', '');
+  const displayButton = iconButton(tools, 'sliders-horizontal', '显示选项');
+
+  const archivedNote = container.createDiv({
+    cls: 'abkc-callout',
+    text: '这些摘录已在 Apple Books 中删除，文件仍保留。可以恢复，或移到回收站。',
+  });
   const board = container.createDiv({ cls: 'abkc-board' });
-  const renderOptions: RenderOptions = { showAppleNote: true, showLocalNote: false, maxChars: DEFAULT_MAX_CHARS };
   const nodes = new Map<string, { element: HTMLElement; fingerprint: string }>();
-  const render = (filteredCards: IHighlightCard[], scrollToLast = false) => {
-    board.querySelector('.abkc-empty')?.remove();
-    const paths = new Set(filteredCards.map((c) => c.path));
-    for (const [path, node] of nodes)
-      if (!paths.has(path)) {
-        releaseCard(node.element);
-        node.element.remove();
-        nodes.delete(path);
-      }
-    countEl.setText(`${filteredCards.length} 张卡片`);
+  // Card elements in reading order; grid columns interleave them, so the DOM order differs.
+  let ordered: HTMLElement[] = [];
+  let columnsShown = 0;
+  const columnCount = () => {
+    const width = board.clientWidth;
+    return width ? Math.max(1, Math.floor((width + GRID_GAP) / (GRID_MIN_WIDTH + GRID_GAP))) : 1;
+  };
 
-    if (filteredCards.length === 0) {
-      board.createDiv({ text: '没有找到符合条件的摘录卡片。', cls: 'abkc-empty' });
+  const flip = (field: keyof BoardState) => {
+    (state as unknown as Record<string, unknown>)[field] = !state[field];
+    update();
+  };
+
+  const isFiltered = () =>
+    Boolean(state.query || state.bookTitle || state.chapter || state.color || state.random) ||
+    state.onlyFavorite !== Boolean(context.initialOnlyFavorite) ||
+    state.onlyUnreviewed !== Boolean(context.initialOnlyUnreviewed) ||
+    state.onlyWithThought !== Boolean(context.initialOnlyWithAppleNote) ||
+    state.archived !== Boolean(context.initialArchived);
+
+  const syncToolbar = () => {
+    const base = inScope();
+    if (bookSelect) {
+      setOptions(
+        bookSelect,
+        '全部书籍',
+        uniqueValues(base, (card) => card.bookTitle).map((v) => [v, v]),
+        state.bookTitle,
+      );
+    }
+    const chapterSource = base.filter((card) => !state.bookTitle || card.bookTitle === state.bookTitle);
+    setOptions(
+      chapterSelect,
+      '全部章节',
+      uniqueValues(chapterSource, (card) => card.chapter).map((v) => [v, v]),
+      state.chapter,
+    );
+    const colors = new Set(base.map((card) => card.highlightColor));
+    setOptions(
+      colorSelect,
+      '全部颜色',
+      Object.entries(HIGHLIGHT_COLORS).filter(([value]) => colors.has(value)),
+      state.color,
+    );
+    for (const [button, field] of toggles) {
+      button.toggleClass('is-active', Boolean(state[field]));
+      button.setAttr('aria-pressed', String(Boolean(state[field])));
+    }
+    clearButton.toggleClass('abkc-hidden', !isFiltered());
+    archivedNote.toggleClass('abkc-hidden', !state.archived);
+    shuffleButton.toggleClass('is-active', Boolean(state.random));
+    const next = layout() === 'list' ? 'grid' : 'list';
+    setIcon(layoutButton, next === 'grid' ? 'layout-grid' : 'list');
+    layoutButton.setAttr('aria-label', next === 'grid' ? '切换为网格' : '切换为列表');
+  };
+
+  const visibleCards = (): IHighlightCard[] => {
+    const filtered = filterCards(inScope(), state);
+    if (!state.random) return filtered;
+    const byPath = new Map(filtered.map((card) => [card.path, card]));
+    return state.random.map((path) => byPath.get(path)).filter((card): card is IHighlightCard => Boolean(card));
+  };
+
+  const groupLabel = (card: IHighlightCard) =>
+    scoped ? card.chapter || '未标注章节' : [card.bookTitle, card.chapter].filter(Boolean).join(' · ') || '未标注章节';
+
+  const render = (scrollToLast = false) => {
+    syncToolbar();
+    const visible = visibleCards();
+    const mode = layout();
+    const options: CardOptions = {
+      layout: mode,
+      scoped,
+      showThought: prefs.showThought,
+      showNote: prefs.showNote,
+      clampLong: prefs.clampLong,
+      readOnly: Boolean(context.readOnly),
+    };
+    board.className = `abkc-board is-${mode}`;
+    countEl.setText(state.random ? `随机 ${visible.length} 条` : `${visible.length} 条`);
+    board.querySelectorAll('.abkc-empty').forEach((el) => el.remove());
+
+    const paths = new Set(visible.map((card) => card.path));
+    for (const [path, node] of nodes) {
+      if (paths.has(path)) continue;
+      releaseCard(node.element);
+      node.element.remove();
+      nodes.delete(path);
+    }
+
+    if (!visible.length) {
+      ordered = [];
+      place(board, []);
+      const empty = board.createDiv({ cls: 'abkc-empty' });
+      empty.createDiv({ text: isFiltered() ? '没有符合条件的摘录' : state.archived ? '没有已移除的摘录' : '还没有摘录' });
+      if (isFiltered()) {
+        empty.createEl('button', { text: '清除筛选', attr: { type: 'button' } }).addEventListener('click', clear);
+      }
       return;
     }
 
-    for (const card of filteredCards) {
-      const fingerprint = JSON.stringify([card, renderOptions]);
+    // Headers group consecutive cards; card elements are reused so focus and scroll survive updates.
+    const grouped = mode === 'list' && !state.random;
+    const sequence: HTMLElement[] = [];
+    let currentGroup: { label: string; count: HTMLElement; n: number } | null = null;
+    for (const card of visible) {
+      if (grouped && currentGroup?.label !== groupLabel(card)) {
+        const header = createDiv({ cls: 'abkc-group-header' });
+        header.createSpan({ text: groupLabel(card) });
+        currentGroup = { label: groupLabel(card), count: header.createSpan({ cls: 'abkc-group-count' }), n: 0 };
+        sequence.push(header);
+      }
+      if (currentGroup) currentGroup.count.setText(String(++currentGroup.n));
+      const fingerprint = JSON.stringify([card, options]);
       const old = nodes.get(card.path);
       if (old?.fingerprint !== fingerprint) {
-        const element = renderCard(app, board, card, context, renderOptions);
+        const element = renderCard(actions, card, options);
         if (old) {
           releaseCard(old.element);
           old.element.replaceWith(element);
         }
         nodes.set(card.path, { element, fingerprint });
       }
+      sequence.push(nodes.get(card.path)!.element);
     }
-    // Reorder only when necessary; unchanged elements keep focus and DOM identity.
-    let cursor = board.firstElementChild;
-    for (const card of filteredCards) {
-      const element = nodes.get(card.path)!.element;
-      if (element !== cursor) board.insertBefore(element, cursor);
-      cursor = element.nextElementSibling;
+    ordered = visible.map((card) => nodes.get(card.path)!.element);
+    if (mode === 'list') {
+      place(board, sequence);
+    } else {
+      // Masonry: each card goes to the currently shortest column, so the first row reads 1, 2, 3… and no gaps open under short cards.
+      const count = columnCount();
+      let columns = Array.from(board.children).filter((el): el is HTMLElement => el.classList.contains('abkc-column'));
+      if (columns.length !== count) columns = Array.from({ length: count }, () => createDiv({ cls: 'abkc-column' }));
+      const heights = columns.map(() => 0);
+      const buckets = columns.map((): HTMLElement[] => []);
+      visible.forEach((card, index) => {
+        const target = heights.indexOf(Math.min(...heights));
+        buckets[target].push(ordered[index]);
+        heights[target] += estimateLines(card, options);
+      });
+      place(board, columns);
+      columns.forEach((column, index) => place(column, buckets[index]));
+      columnsShown = count;
     }
 
-    // Only scroll to the last-opened card on the initial render (returning from a card's page).
-    // Filtering / random / reset must NOT scroll — that was the jump-to-middle bug.
-    if (!scrollToLast) {
-      return;
-    }
-
+    if (!scrollToLast) return;
     const lastCardId = window.sessionStorage.getItem('abkc:last-card');
     if (lastCardId) {
       window.requestAnimationFrame(() => {
-        board.querySelector<HTMLElement>(`[data-annotation-id="${CSS.escape(lastCardId)}"]`)?.scrollIntoView({
-          block: 'center',
-          inline: 'nearest',
-        });
+        board.querySelector<HTMLElement>(`[data-annotation-id="${CSS.escape(lastCardId)}"]`)?.scrollIntoView({ block: 'center' });
         window.sessionStorage.removeItem('abkc:last-card');
       });
     }
   };
 
-  const initialBookTitle = getBookTitleFromFilter(cards, filters);
-  const initialState: ToolbarState = {
-    query: '',
-    archived: Boolean(context.initialArchived),
-    bookTitle: initialBookTitle,
-    bookAuthor: '',
-    chapter: '',
-    color: '',
-    onlyFavorite: Boolean(context.initialOnlyFavorite),
-    onlyUnreviewed: Boolean(context.initialOnlyUnreviewed),
-    onlyWithAppleNote: Boolean(context.initialOnlyWithAppleNote),
-    onlyWithChapter: Boolean(context.initialOnlyWithChapter),
+  const update = () => {
+    state.random = null;
+    render();
   };
 
-  const refresh = renderToolbar(toolbarHost, cards, render, filters, renderOptions, {
-    initialArchived: context.initialArchived,
-    initialBookTitle,
-    initialOnlyFavorite: Boolean(context.initialOnlyFavorite),
-    initialOnlyUnreviewed: Boolean(context.initialOnlyUnreviewed),
-    initialOnlyWithAppleNote: Boolean(context.initialOnlyWithAppleNote),
-    initialOnlyWithChapter: Boolean(context.initialOnlyWithChapter),
+  function clear() {
+    Object.assign(state, initialState(context, ''));
+    search.value = '';
+    render();
+  }
+
+  search.addEventListener('input', () => {
+    state.query = search.value;
+    update();
   });
-  render(applyToolbarState(applyFilters(cards, filters), initialState), true);
+  clearButton.addEventListener('click', clear);
+  shuffleButton.addEventListener('click', () => {
+    const pool = filterCards(inScope(), state);
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    state.random = pool.slice(0, RANDOM_SIZE).map((card) => card.path);
+    render();
+  });
+  layoutButton.addEventListener('click', () => {
+    if (scoped) prefs.bookLayout = layout() === 'list' ? 'grid' : 'list';
+    else prefs.allLayout = layout() === 'list' ? 'grid' : 'list';
+    writePrefs('board', prefs);
+    render();
+  });
+  displayButton.addEventListener('click', (event) => {
+    const menu = new Menu();
+    const option = (title: string, field: 'showThought' | 'showNote' | 'clampLong') =>
+      menu.addItem((item) =>
+        item
+          .setTitle(title)
+          .setChecked(prefs[field])
+          .onClick(() => {
+            prefs[field] = !prefs[field];
+            writePrefs('board', prefs);
+            render();
+          }),
+      );
+    option('显示 Apple Books 想法', 'showThought');
+    option('显示我的笔记', 'showNote');
+    option('折叠长摘录', 'clampLong');
+    menu.showAtMouseEvent(event);
+  });
+
+  // Keyboard: j/k or arrows move between cards; f favorite, e edit, c copy, Enter/o open.
+  board.addEventListener('keydown', (event) => {
+    const cardEl = (event.target as HTMLElement).closest<HTMLElement>('article.abkc-card');
+    if (!cardEl || event.target !== cardEl || event.metaKey || event.ctrlKey || event.altKey) return;
+    const card = visibleCards().find((entry) => entry.annotationId === cardEl.dataset.annotationId);
+    const move = (step: number) => ordered[ordered.indexOf(cardEl) + step]?.focus();
+    const handlers: Record<string, () => void> = {
+      j: () => move(1),
+      ArrowDown: () => move(1),
+      k: () => move(-1),
+      ArrowUp: () => move(-1),
+    };
+    if (card && !context.readOnly) {
+      Object.assign(handlers, {
+        f: () => void toggleFavorite(actions, card),
+        e: () => editCardNote(actions, card),
+        c: () => void copyHighlight(card),
+        o: () => void openCardFile(app, card),
+        Enter: () => void openCardFile(app, card),
+      });
+    }
+    const handler = handlers[event.key];
+    if (!handler) return;
+    event.preventDefault();
+    handler();
+  });
+
+  render(true);
+  if (typeof ResizeObserver !== 'undefined') {
+    const observer = new ResizeObserver(() => {
+      if (layout() === 'grid' && columnCount() !== columnsShown) render();
+    });
+    observer.observe(board);
+    resizeObservers.set(container, observer);
+  }
   boardControllers.set(container, {
     key,
     update: (next) => {
-      cards.splice(0, cards.length, ...next);
-      refresh();
+      all = [...next];
+      render();
     },
   });
   bindNoteToc(container);
@@ -809,14 +627,13 @@ export const renderCardsBoard = (
 export const cleanupCardsBoard = (container: HTMLElement): void => {
   for (const el of Array.from(container.querySelectorAll<HTMLElement>('.abkc-card'))) releaseCard(el);
   boardControllers.delete(container);
+  resizeObservers.get(container)?.disconnect();
+  resizeObservers.delete(container);
 };
 
 export const cleanupCardRenderer = (): void => {
   for (const component of noteComponents.values()) component.unload();
   noteComponents.clear();
-  for (const cleanup of boundTocCleanups) {
-    cleanup();
-  }
-
+  for (const cleanup of boundTocCleanups) cleanup();
   boundTocCleanups.length = 0;
 };

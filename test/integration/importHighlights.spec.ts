@@ -281,12 +281,39 @@ describe('safe incremental import', () => {
     expect(epub.extractBookCover).toHaveBeenCalledTimes(1);
     expect(parseFrontmatter(env.files.get(mainPath()) as string).cover).toBeTruthy();
   });
-  test('malformed YAML never gets overwritten', async () => {
+  test('malformed YAML is never overwritten or duplicated, and other books still import', async () => {
+    await sync();
+    const path = mainPath();
+    const broken = `---\ntitle: [broken\nbook_id: "${book.bookId}"\n---\nmy text`;
+    env.put(path, broken);
+    books.push({ ...book, bookId: 'other', bookTitle: '另一本书' });
+    annotations.push({ ...annotation('o1'), assetId: 'other' });
+    const result = await sync();
+    expect(result.failures).toHaveLength(1);
+    expect(result.failures[0]).toContain(path);
+    expect(result.books).toBe(1);
+    expect(env.files.get(path)).toBe(broken);
+    const mains = [...env.files.keys()].filter((p) => p.endsWith('.md') && !p.includes('/cards/'));
+    expect(mains).toHaveLength(2);
+    expect(mains.some((p) => p.includes('另一本书'))).toBe(true);
+  });
+  test('a broken note without a readable book ID still blocks the book it would be written to', async () => {
     await sync();
     const path = mainPath();
     env.put(path, '---\ntitle: [broken\n---\nmy text');
-    await expect(sync()).rejects.toThrow();
-    expect(env.files.get(path)).toContain('my text');
+    const result = await sync();
+    expect(result.failures[0]).toContain(path);
+    expect([...env.files.keys()].filter((p) => p.endsWith('.md') && !p.includes('/cards/'))).toEqual([path]);
+  });
+  test('a 1.8 note with unescaped quotes imports normally and is rewritten as valid YAML', async () => {
+    await sync();
+    const path = mainPath();
+    const legacy = (env.files.get(path) as string).replace(/^title:.*$/m, 'title: "学会说 "不""');
+    env.put(path, legacy);
+    const result = await sync();
+    expect(result.failures).toEqual([]);
+    expect(parseFrontmatter(env.files.get(path) as string).title).toBe('学会说 "不"');
+    expect(env.files.get(path)).not.toContain('title: "学会说 "不""');
   });
   test('custom card fields and extra sections survive reimport', async () => {
     await sync();
@@ -407,6 +434,18 @@ test('damaged legacy metadata comments do not fail the book import', async () =>
     expect(env.files.get(p)).toContain('这是我的正文。');
     expect(env.files.get(p)).not.toContain('<!-- abkc:metadata');
   }
+});
+
+test('re-import keeps daily review progress on cards', async () => {
+  const { recordReview } = await import('../../src/modules/highlightRepository');
+  await sync();
+  const [first] = await cards();
+  await recordReview(env.app, first, 3, '2026-09-27');
+  annotations[0].note = '来源想法更新';
+  await sync();
+  const [after] = await cards();
+  expect(after.review).toMatchObject({ reps: 1, last: '2026-09-27', due: '2026-10-01' });
+  expect(after.appleNote).toBe('来源想法更新');
 });
 
 test('source thought updates do not silently fill local notes', async () => {
