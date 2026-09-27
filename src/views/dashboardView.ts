@@ -1,275 +1,271 @@
-import { type App, ItemView, Platform, setIcon, WorkspaceLeaf } from 'obsidian';
+import { type App, ItemView, Menu, Platform, setIcon, WorkspaceLeaf } from 'obsidian';
 import type IBookHighlightsPlugin from '../../main';
 import type { IBookNoteSummary, IHighlightCard } from '../types';
 import { showImportResult } from '../modals/importResult';
-import { IBookHighlightsPluginSearchModal } from '../modals/searchSuggestions';
 import { getBookSummaries, getHighlightCards } from '../modules/highlightRepository';
 import { watchVault } from '../utils/watchVault';
-import { openCardsView } from './cardsView';
+import { openCardFile } from './cardActions';
+import { openCardsView, type CardsViewState } from './cardsView';
+import { renderReviewPanel, type ReviewPanelHandle } from './reviewPanel';
+import { appleDate, relativeDay, truncate } from './ui';
 
 export const DASHBOARD_VIEW_TYPE = 'apple-books-knowledge-dashboard-view';
 
-interface LibraryStats {
-  bookCount: number;
-  highlightCount: number;
-  favoriteCount: number;
-  noteCount: number;
-}
+const HEATMAP_WEEKS = 18;
+const SHELF_SIZE = 8;
+const RECENT_SIZE = 6;
+const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
 
-const getStats = (books: IBookNoteSummary[], cards: IHighlightCard[]): LibraryStats => {
-  return {
-    bookCount: books.length,
-    highlightCount: cards.length,
-    favoriteCount: cards.filter((card) => card.favorite).length,
-    noteCount: cards.filter((card) => card.appleNote.trim()).length,
-  };
-};
+const panelHandles = new WeakMap<HTMLElement, ReviewPanelHandle>();
 
-const getRecentBooks = (books: IBookNoteSummary[]): IBookNoteSummary[] => {
-  // Take up to 12; the CSS grid auto-fits columns to width, so wider screens fill more in (6–12).
-  return [...books].sort((a, b) => b.annotationCount - a.annotationCount).slice(0, 12);
-};
+const getCoverPath = (cover: string): string => cover.match(/\[\[([^\]|]+)/)?.[1] || '';
 
-const getRecentCards = (cards: IHighlightCard[]): IHighlightCard[] => {
-  return [...cards]
-    .sort((a, b) => {
-      const dateComparison = b.highlightCreationDate - a.highlightCreationDate;
+// Recently opened books first; books without a known open date follow by highlight count.
+export const shelfOrder = (books: IBookNoteSummary[]): IBookNoteSummary[] =>
+  [...books].sort((a, b) => (b.lastOpened || '').localeCompare(a.lastOpened || '') || b.annotationCount - a.annotationCount);
 
-      if (dateComparison !== 0) {
-        return dateComparison;
-      }
+const localDay = (date: Date) => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 
-      return b.path.localeCompare(a.path);
-    })
-    .slice(0, 4);
-};
-
-const getRandomCards = (cards: IHighlightCard[], count = 4): IHighlightCard[] => {
-  const shuffled = [...cards];
-
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+export const heatmapDays = (cards: IHighlightCard[], weeks: number, now = new Date()): Array<{ date: Date; count: number }> => {
+  const counts = new Map<string, number>();
+  for (const card of cards) {
+    if (!card.highlightCreationDate) continue;
+    const key = localDay(appleDate(card.highlightCreationDate));
+    counts.set(key, (counts.get(key) || 0) + 1);
   }
-
-  return shuffled.slice(0, count);
-};
-
-const trimText = (value: string, maxLength: number): string => {
-  const normalized = value.replace(/\s+/g, ' ').trim();
-
-  if (normalized.length <= maxLength) {
-    return normalized;
-  }
-
-  return `${normalized.slice(0, maxLength)}…`;
-};
-
-const renderInlineHighlight = (container: HTMLElement, text: string): void => {
-  const lines = text.split('\n');
-
-  lines.forEach((line, index) => {
-    if (index > 0) {
-      container.createEl('br');
-    }
-
-    container.createSpan({ text: line, cls: 'abkc-highlight-text' });
+  // Start on the Monday `weeks - 1` weeks before this week's Monday.
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7) - (weeks - 1) * 7);
+  const total = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() - start.getTime()) / 86400000) + 1;
+  return Array.from({ length: total }, (_, offset) => {
+    const date = new Date(start.getFullYear(), start.getMonth(), start.getDate() + offset);
+    return { date, count: counts.get(localDay(date)) || 0 };
   });
 };
 
-const getCoverPath = (cover: string): string => {
-  return cover.match(/\[\[([^\]]+)\]\]/)?.[1] || '';
-};
-
-const openHighlightsFolder = async (app: App, plugin: IBookHighlightsPlugin): Promise<void> => {
-  // Prefer the user-configured library page (e.g. 我的图书馆.base).
+const openLibrary = async (plugin: IBookHighlightsPlugin): Promise<void> => {
   const libraryPagePath = plugin.settings.libraryPagePath?.trim();
-
   if (libraryPagePath) {
-    await app.workspace.openLinkText(libraryPagePath, '', false);
+    await plugin.app.workspace.openLinkText(libraryPagePath, '', false);
     return;
   }
-
-  // Otherwise reveal the highlights folder in the file explorer.
-  const folder = app.vault.getFolderByPath(plugin.settings.highlightsFolder);
-
-  if (folder) {
-    const fileExplorer = app.workspace.getLeavesOfType('file-explorer')[0];
-
-    if (fileExplorer) {
-      app.workspace.revealLeaf(fileExplorer);
-      return;
-    }
+  const explorer = plugin.app.workspace.getLeavesOfType('file-explorer')[0];
+  if (explorer && plugin.app.vault.getFolderByPath(plugin.settings.highlightsFolder)) {
+    plugin.app.workspace.revealLeaf(explorer);
+    return;
   }
-
   await openCardsView(plugin);
 };
 
-const renderStat = (
-  container: HTMLElement,
-  label: string,
-  value: string | number,
-  icon: string,
-  accent: string,
-  onClick: () => Promise<void>,
+const runImport = async (plugin: IBookHighlightsPlugin, refresh: () => Promise<void>) => {
+  const { backupAndImport } = await import('../utils/backupAndImportFlow');
+  await backupAndImport(plugin, plugin.settings);
+  await refresh();
+};
+
+const openImportOne = async (plugin: IBookHighlightsPlugin) => {
+  const { IBookHighlightsPluginSearchModal } = await import('../modals/searchSuggestions');
+  new IBookHighlightsPluginSearchModal(plugin.app, plugin).open();
+};
+
+const renderHeader = (
+  plugin: IBookHighlightsPlugin,
+  root: HTMLElement,
+  books: IBookNoteSummary[],
+  cards: IHighlightCard[],
+  refresh: () => Promise<void>,
 ) => {
-  const stat = container.createEl('button', { cls: 'abkc-dashboard-stat' });
-  stat.setAttr('style', `--abkc-stat-accent: ${accent}`);
-  const iconEl = stat.createDiv({ cls: 'abkc-dashboard-stat-icon' });
-  setIcon(iconEl, icon);
-  const text = stat.createDiv({ cls: 'abkc-dashboard-stat-text' });
-  text.createDiv({ text: String(value), cls: 'abkc-dashboard-stat-value' });
-  text.createDiv({ text: label, cls: 'abkc-dashboard-stat-label' });
-  stat.addEventListener('click', async () => {
-    await onClick();
+  const header = root.createDiv({ cls: 'abkc-home-header' });
+  const titles = header.createDiv();
+  const now = new Date();
+  titles.createEl('h1', { text: `${now.getMonth() + 1} 月 ${now.getDate()} 日 星期${WEEKDAYS[now.getDay()]}` });
+  const summary = titles.createDiv({ cls: 'abkc-home-summary' });
+  const stat = (text: string, onClick: () => void) => {
+    if (summary.childElementCount) summary.createSpan({ text: '·', cls: 'abkc-dot' });
+    summary.createEl('button', { text, cls: 'abkc-link-button', attr: { type: 'button' } }).addEventListener('click', onClick);
+  };
+  stat(`${books.length} 本书`, () => void openLibrary(plugin));
+  stat(`${cards.length} 条摘录`, () => void openCardsView(plugin));
+  stat(
+    `${cards.filter((card) => card.appleNote.trim() || card.localNote.trim()).length} 条有想法`,
+    () => void openCardsView(plugin, { onlyWithAppleNote: true }),
+  );
+
+  const actions = header.createDiv({ cls: 'abkc-home-actions' });
+  const wall = actions.createEl('button', { cls: 'abkc-button', attr: { type: 'button' } });
+  setIcon(wall.createSpan({ cls: 'abkc-button-icon' }), 'layout-grid');
+  wall.appendText('摘录墙');
+  wall.addEventListener('click', () => void openCardsView(plugin));
+  if (!Platform.isMobile) {
+    const importButton = actions.createEl('button', { cls: 'abkc-button', attr: { type: 'button' } });
+    setIcon(importButton.createSpan({ cls: 'abkc-button-icon' }), 'download');
+    importButton.appendText('导入');
+    importButton.addEventListener('click', (event) => {
+      const menu = new Menu();
+      menu.addItem((item) =>
+        item
+          .setTitle('导入全部书籍')
+          .setIcon('library')
+          .onClick(() => runImport(plugin, refresh)),
+      );
+      menu.addItem((item) =>
+        item
+          .setTitle('导入指定书籍…')
+          .setIcon('book-plus')
+          .onClick(() => openImportOne(plugin)),
+      );
+      menu.addSeparator();
+      menu.addItem((item) =>
+        item
+          .setTitle('最近导入结果')
+          .setIcon('history')
+          .onClick(() => showImportResult(plugin)),
+      );
+      menu.showAtMouseEvent(event);
+    });
+  }
+};
+
+const renderFootprint = (side: HTMLElement, cards: IHighlightCard[]) => {
+  const section = side.createEl('section', { cls: 'abkc-home-card' });
+  section.createEl('h3', { text: '阅读足迹' });
+  const days = heatmapDays(cards, HEATMAP_WEEKS);
+  const max = Math.max(1, ...days.map((day) => day.count));
+  const grid = section.createDiv({ cls: 'abkc-heatmap', attr: { role: 'img', 'aria-label': `近 ${HEATMAP_WEEKS} 周每天新增的摘录数` } });
+  for (const { date, count } of days) {
+    const level = count ? Math.max(1, Math.ceil((count / max) * 4)) : 0;
+    grid.createDiv({
+      cls: `abkc-heatmap-cell is-l${level}`,
+      attr: { title: `${date.getMonth() + 1} 月 ${date.getDate()} 日 · ${count} 条` },
+    });
+  }
+  const total = days.reduce((sum, day) => sum + day.count, 0);
+  const active = days.filter((day) => day.count).length;
+  section.createDiv({
+    text: total ? `近 ${HEATMAP_WEEKS} 周新增 ${total} 条，${active} 天有摘录` : `近 ${HEATMAP_WEEKS} 周还没有新摘录`,
+    cls: 'abkc-muted',
   });
 };
 
-const renderBook = (app: App, container: HTMLElement, book: IBookNoteSummary) => {
-  const bookEl = container.createEl('button', { cls: 'abkc-dashboard-book' });
-  const coverPath = getCoverPath(book.cover);
+const renderTriage = (plugin: IBookHighlightsPlugin, side: HTMLElement, cards: IHighlightCard[], archivedCount: number) => {
+  const section = side.createEl('section', { cls: 'abkc-home-card' });
+  section.createEl('h3', { text: '整理' });
+  const list = section.createDiv({ cls: 'abkc-triage' });
+  const row = (icon: string, label: string, count: number, state: CardsViewState) => {
+    const button = list.createEl('button', { cls: 'abkc-triage-row', attr: { type: 'button' } });
+    setIcon(button.createSpan({ cls: 'abkc-triage-icon' }), icon);
+    button.createSpan({ text: label, cls: 'abkc-triage-label' });
+    button.createSpan({ text: String(count), cls: 'abkc-triage-count' });
+    button.addEventListener('click', () => void openCardsView(plugin, state));
+  };
+  row('circle-dashed', '待整理', cards.filter((card) => !card.reviewed).length, { onlyUnreviewed: true });
+  row('star', '收藏', cards.filter((card) => card.favorite).length, { onlyFavorite: true });
+  row('message-square', '有想法', cards.filter((card) => card.appleNote.trim() || card.localNote.trim()).length, {
+    onlyWithAppleNote: true,
+  });
+  row('archive', '已移除', archivedCount, { archived: true });
 
-  if (coverPath) {
-    const image = bookEl.createEl('img', { attr: { alt: book.title } });
-    image.src = app.vault.adapter.getResourcePath(coverPath);
+  const last = plugin.settings.lastImport;
+  const status = section.createEl('button', { cls: 'abkc-import-status', attr: { type: 'button' } });
+  setIcon(status.createSpan({ cls: 'abkc-triage-icon' }), 'history');
+  if (last) {
+    const at = new Date(last.at);
+    const time = `${relativeDay(at)} ${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
+    const changes = last.created + last.updated ? `新增 ${last.created} · 更新 ${last.updated}` : '没有变化';
+    status.createSpan({ text: `上次导入 ${time} · ${last.failures.length ? `${last.failures.length} 本失败` : changes}` });
+    if (last.failures.length || last.warnings.length) status.addClass('has-issues');
   } else {
-    bookEl.createDiv({ text: book.title.slice(0, 1), cls: 'abkc-dashboard-cover-fallback' });
+    status.createSpan({ text: '还没有导入记录' });
   }
-
-  const meta = bookEl.createDiv({ cls: 'abkc-dashboard-book-meta' });
-  meta.createDiv({ text: book.title, cls: 'abkc-dashboard-book-title' });
-  meta.createDiv({ text: book.author, cls: 'abkc-dashboard-muted' });
-  meta.createDiv({ text: `${book.annotationCount} 条摘录 · ${book.status || '未标记'}`, cls: 'abkc-dashboard-muted' });
-
-  bookEl.addEventListener('click', async () => {
-    await app.workspace.openLinkText(book.path, '', false);
-  });
+  status.addEventListener('click', () => showImportResult(plugin));
 };
 
-const renderHighlight = (app: App, container: HTMLElement, card: IHighlightCard) => {
-  const cardEl = container.createEl('button', { cls: `abkc-dashboard-highlight abkc-card abkc-card-${card.highlightColor}` });
-  const header = cardEl.createDiv({ cls: 'abkc-card-header' });
-  header.createDiv({ text: 'Apple Books', cls: 'abkc-card-brand' });
-  header.createDiv({ text: 'Note Receipt', cls: 'abkc-card-title' });
-  cardEl.createDiv({ cls: 'abkc-card-rule' });
-  cardEl.createDiv({ text: `摘录 ${card.highlightIndex}`, cls: 'abkc-card-index' });
-
-  if (card.chapter) {
-    cardEl.createDiv({ text: card.chapter, cls: 'abkc-card-chapter' });
+const renderShelf = (app: App, plugin: IBookHighlightsPlugin, root: HTMLElement, books: IBookNoteSummary[]) => {
+  if (!books.length) return;
+  const section = root.createEl('section', { cls: 'abkc-home-section' });
+  const header = section.createDiv({ cls: 'abkc-section-header' });
+  header.createEl('h2', { text: '继续阅读' });
+  header
+    .createEl('button', { text: '全部书籍', cls: 'abkc-link-button', attr: { type: 'button' } })
+    .addEventListener('click', () => void openLibrary(plugin));
+  const shelf = section.createDiv({ cls: 'abkc-shelf' });
+  for (const book of shelfOrder(books).slice(0, SHELF_SIZE)) {
+    const item = shelf.createEl('button', { cls: 'abkc-book', attr: { type: 'button', title: book.title } });
+    const cover = item.createDiv({ cls: 'abkc-book-cover' });
+    const coverPath = getCoverPath(book.cover);
+    if (coverPath && app.vault.getFileByPath(coverPath)) {
+      cover.createEl('img', { attr: { alt: '', src: app.vault.adapter.getResourcePath(coverPath), loading: 'lazy' } });
+    } else {
+      cover.addClass('is-fallback');
+      cover.createDiv({ text: truncate(book.title, 16), cls: 'abkc-book-fallback-title' });
+    }
+    item.createDiv({ text: book.title, cls: 'abkc-book-title' });
+    const opened = book.lastOpened ? relativeDay(new Date(book.lastOpened)) : book.status;
+    item.createDiv({ text: [`${book.annotationCount} 条`, opened].filter(Boolean).join(' · '), cls: 'abkc-muted' });
+    item.addEventListener('click', () => void app.workspace.openLinkText(book.path, '', false));
   }
+};
 
-  const highlightEl = cardEl.createDiv({ cls: 'abkc-card-highlight' });
-  renderInlineHighlight(highlightEl, trimText(card.highlight, 160));
-
-  if (card.appleNote.trim()) {
-    const note = cardEl.createDiv({ cls: 'abkc-card-note' });
-    note.createDiv({ text: '想法', cls: 'abkc-card-label' });
-    note.createDiv({ text: trimText(card.appleNote, 90) });
+const renderRecent = (app: App, root: HTMLElement, cards: IHighlightCard[]) => {
+  const recent = [...cards]
+    .sort((a, b) => b.highlightCreationDate - a.highlightCreationDate || b.path.localeCompare(a.path))
+    .slice(0, RECENT_SIZE);
+  if (!recent.length) return;
+  const section = root.createEl('section', { cls: 'abkc-home-section' });
+  section.createDiv({ cls: 'abkc-section-header' }).createEl('h2', { text: '最近摘录' });
+  const list = section.createDiv({ cls: 'abkc-recent' });
+  for (const card of recent) {
+    const item = list.createEl('button', { cls: 'abkc-recent-item', attr: { type: 'button', 'data-color': card.highlightColor } });
+    item.createDiv({ text: truncate(card.highlight, 140), cls: 'abkc-recent-quote' });
+    const when = card.highlightCreationDate ? relativeDay(appleDate(card.highlightCreationDate)) : '';
+    item.createDiv({ text: [card.bookTitle, when].filter(Boolean).join(' · '), cls: 'abkc-muted' });
+    item.addEventListener('click', () => void openCardFile(app, card));
   }
-
-  cardEl.createDiv({ cls: 'abkc-card-rule' });
-  const meta = cardEl.createDiv({ cls: 'abkc-card-meta' });
-  meta.createDiv({ text: trimText(card.bookTitle, 42) });
-
-  cardEl.addEventListener('click', async () => {
-    await app.workspace.openLinkText(card.path, '', true);
-  });
 };
 
 const renderDashboardContent = async (
   app: App,
   plugin: IBookHighlightsPlugin,
   contentEl: HTMLElement,
-  onRefresh: () => Promise<void>,
+  refresh: () => Promise<void>,
 ): Promise<void> => {
-  contentEl.empty();
-  contentEl.addClass('abkc-dashboard-root');
-  contentEl.toggleClass('abkc-mobile', Platform.isMobile);
-
+  let books: IBookNoteSummary[];
+  let allCards: IHighlightCard[];
   try {
-    const [books, cards] = await Promise.all([
-      getBookSummaries(app, plugin.settings),
-      getHighlightCards(app, plugin.settings).then((allCards) => allCards.filter((card) => !card.archived)),
-    ]);
-    const stats = getStats(books, cards);
-    const randomCards = getRandomCards(cards);
-
-    const hero = contentEl.createDiv({ cls: 'abkc-dashboard-hero' });
-    const heroText = hero.createDiv({ cls: 'abkc-dashboard-intro' });
-    heroText.createDiv({ text: 'Apple Books', cls: 'abkc-dashboard-kicker' });
-    heroText.createEl('h1', { text: '阅读仪表盘' });
-    heroText.createEl('p', { text: '从书、摘录、想法和随机回顾进入你的阅读现场。' });
-    const heroActions = heroText.createDiv({ cls: 'abkc-dashboard-actions' });
-    heroActions.createEl('button', { text: '打开摘录墙', cls: 'abkc-dashboard-primary' }).addEventListener('click', async () => {
-      await openCardsView(plugin);
-    });
-    heroActions.createEl('button', { text: '浏览书籍', cls: 'abkc-dashboard-secondary' }).addEventListener('click', async () => {
-      await openHighlightsFolder(app, plugin);
-    });
-
-    const action = (label: string, run: () => void | Promise<unknown>) =>
-      heroActions.createEl('button', { text: label, cls: 'abkc-dashboard-secondary' }).addEventListener('click', () => {
-        void run();
-      });
-    if (!Platform.isMobile) {
-      action('导入一本', () => new IBookHighlightsPluginSearchModal(app, plugin).open());
-      action('导入全部', async () => {
-        const { backupAndImport } = await import('../utils/backupAndImportFlow');
-        await backupAndImport(plugin, plugin.settings);
-        await onRefresh();
-      });
-    }
-    action('已移除摘录', () => openCardsView(plugin, { archived: true }));
-    action('最近导入结果', () => showImportResult(plugin));
-
-    const statGrid = hero.createDiv({ cls: 'abkc-dashboard-stats' });
-    renderStat(statGrid, '书籍', stats.bookCount, 'book', '#0a84ff', async () => {
-      await openHighlightsFolder(app, plugin);
-    });
-    renderStat(statGrid, '摘录', stats.highlightCount, 'highlighter', '#ff9f0a', async () => {
-      await openCardsView(plugin);
-    });
-    renderStat(statGrid, '想法', stats.noteCount, 'lightbulb', '#30d158', async () => {
-      await openCardsView(plugin, { onlyWithAppleNote: true });
-    });
-    renderStat(statGrid, '收藏', stats.favoriteCount, 'star', '#ff375f', async () => {
-      await openCardsView(plugin, { onlyFavorite: true });
-    });
-
-    const mainGrid = contentEl.createDiv({ cls: 'abkc-dashboard-grid' });
-    const booksSection = mainGrid.createDiv({ cls: 'abkc-dashboard-section abkc-dashboard-section-wide' });
-    booksSection.createEl('h2', { text: '最近值得回看的书' });
-    const bookGrid = booksSection.createDiv({ cls: 'abkc-dashboard-books' });
-    for (const book of getRecentBooks(books)) {
-      renderBook(app, bookGrid, book);
-    }
-
-    const randomSection = mainGrid.createDiv({ cls: 'abkc-dashboard-section' });
-    const randomHeader = randomSection.createDiv({ cls: 'abkc-dashboard-section-header' });
-    randomHeader.createEl('h2', { text: '随机回顾' });
-    randomHeader.createEl('button', { text: '重新随机', cls: 'abkc-dashboard-section-action' }).addEventListener('click', async () => {
-      await onRefresh();
-    });
-    randomSection.createEl('p', { text: '从全部摘录里抽几张，适合每天快速复习。', cls: 'abkc-dashboard-muted' });
-    const randomList = randomSection.createDiv({ cls: 'abkc-dashboard-highlights' });
-    for (const card of randomCards) {
-      renderHighlight(app, randomList, card);
-    }
-
-    const recentSection = mainGrid.createDiv({ cls: 'abkc-dashboard-section' });
-    const recentHeader = recentSection.createDiv({ cls: 'abkc-dashboard-section-header' });
-    recentHeader.createEl('h2', { text: '最近摘录' });
-    recentSection.createEl('p', { text: '按时间排序，最新加入的摘录排在最前面。', cls: 'abkc-dashboard-muted' });
-    const recentList = recentSection.createDiv({ cls: 'abkc-dashboard-highlights' });
-    for (const card of getRecentCards(cards)) {
-      renderHighlight(app, recentList, card);
-    }
+    [books, allCards] = await Promise.all([getBookSummaries(app, plugin.settings), getHighlightCards(app, plugin.settings)]);
   } catch (error) {
-    contentEl.createDiv({
-      cls: 'abkc-empty',
-      text: `Apple Books 阅读仪表盘加载失败：${error instanceof Error ? error.message : String(error)}`,
-    });
+    contentEl.empty();
+    contentEl.createDiv({ cls: 'abkc-empty', text: `阅读仪表盘加载失败：${error instanceof Error ? error.message : String(error)}` });
     console.error('[Apple Books Knowledge Cards]:', error);
+    return;
+  }
+  // Snapshot cards live outside the books folder, so every card here is current.
+  const cards = allCards.filter((card) => !card.archived);
+  // Rebuild synchronously after the data is ready so the view never flashes empty or loses its scroll position.
+  const scroller = contentEl.closest<HTMLElement>('.view-content, .markdown-preview-view') || contentEl;
+  const scrollTop = scroller.scrollTop;
+  contentEl.empty();
+  contentEl.addClass('abkc-home-root');
+  contentEl.toggleClass('abkc-mobile', Platform.isMobile);
+  const root = contentEl.createDiv({ cls: 'abkc-home' });
+  renderHeader(plugin, root, books, cards, refresh);
+  const grid = root.createDiv({ cls: 'abkc-home-grid' });
+  const main = grid.createDiv({ cls: 'abkc-home-main' });
+  panelHandles.set(contentEl, renderReviewPanel(app, main, cards, plugin.settings.reviewNewPerDay ?? 10, refresh));
+  const side = grid.createDiv({ cls: 'abkc-home-side' });
+  renderFootprint(side, allCards);
+  renderTriage(plugin, side, cards, allCards.length - cards.length);
+  renderShelf(app, plugin, root, books);
+  renderRecent(app, root, cards);
+  scroller.scrollTop = scrollTop;
+
+  if (!contentEl.dataset.abkcKeys) {
+    contentEl.dataset.abkcKeys = 'true';
+    contentEl.addEventListener('keydown', (event) => {
+      const target = event.target as HTMLElement;
+      if (target.closest('input, textarea, select, [contenteditable="true"]')) return;
+      if (panelHandles.get(contentEl)?.onKey(event)) event.preventDefault();
+    });
   }
 };
 
@@ -294,6 +290,8 @@ export class DashboardView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
+    // Keyboard review shortcuts need the view to be focusable.
+    this.contentEl.setAttr('tabindex', '-1');
     watchVault(this.app, this, () => this.render());
     await this.render();
   }
@@ -309,19 +307,12 @@ export const renderDashboard = async (plugin: IBookHighlightsPlugin, container: 
 
 export const openDashboardView = async (plugin: IBookHighlightsPlugin): Promise<void> => {
   const existingLeaves = plugin.app.workspace.getLeavesOfType(DASHBOARD_VIEW_TYPE);
-
   if (existingLeaves.length > 0) {
     await (existingLeaves[0].view as DashboardView).render();
     plugin.app.workspace.revealLeaf(existingLeaves[0]);
     return;
   }
-
   const leaf = plugin.app.workspace.getLeaf(true);
-
-  await leaf.setViewState({
-    type: DASHBOARD_VIEW_TYPE,
-    active: true,
-  });
-
+  await leaf.setViewState({ type: DASHBOARD_VIEW_TYPE, active: true });
   plugin.app.workspace.revealLeaf(leaf);
 };
