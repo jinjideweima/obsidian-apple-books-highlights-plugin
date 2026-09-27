@@ -54,6 +54,7 @@ export const defaultPluginSettings: IBookHighlightsPluginSettings = {
   highlightsFolder: 'ibooks-highlights',
   backup: false,
   backupRetention: 0,
+  reviewNewPerDay: 10,
   importOnStart: false,
   template: defaultTemplate,
   filenameTemplate: '{{{bookTitle}}} - {{{bookAuthor}}}',
@@ -86,6 +87,7 @@ export class IBookHighlightsSettingTab extends PluginSettingTab {
     this.addImportOnStartSetting(containerEl);
     this.addBackupSetting(containerEl);
     this.addBackupRetentionSetting(containerEl);
+    this.addReviewNewPerDaySetting(containerEl);
     this.addTemplateSetting(containerEl);
     this.addFilenameTemplateSetting(containerEl);
     this.addCoverPathTemplateSetting(containerEl);
@@ -164,6 +166,22 @@ export class IBookHighlightsSettingTab extends PluginSettingTab {
           .setValue(String(this.plugin.settings.backupRetention ?? 0))
           .onChange(async (value) => {
             this.plugin.settings.backupRetention = Number(value);
+
+            await this.plugin.saveSettings();
+          });
+      });
+  }
+
+  addReviewNewPerDaySetting(containerEl: HTMLElement): void {
+    new Setting(containerEl)
+      .setName('每日新摘录数')
+      .setDesc('「今日回顾」每天最多加入几条从未回顾过的摘录。到期需要复习的摘录不受这个数量限制。')
+      .addDropdown((dropdown) => {
+        dropdown
+          .addOptions({ '0': '不加入新摘录', '5': '5 条', '10': '10 条', '20': '20 条', '30': '30 条' })
+          .setValue(String(this.plugin.settings.reviewNewPerDay ?? 10))
+          .onChange(async (value) => {
+            this.plugin.settings.reviewNewPerDay = Number(value);
 
             await this.plugin.saveSettings();
           });

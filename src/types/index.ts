@@ -1,3 +1,5 @@
+import type { ReviewState } from '../modules/review';
+
 export interface IBook {
   bookId: string;
   bookTitle: string;
@@ -49,6 +51,8 @@ export interface IBookHighlightsPluginSettings {
   backup: boolean;
   // Number of newest backup snapshots to keep; 0 keeps all of them.
   backupRetention?: number;
+  // New highlights introduced to the daily review per day.
+  reviewNewPerDay?: number;
   importOnStart: boolean;
   template: string;
   filenameTemplate: string;
@@ -80,6 +84,7 @@ export interface IHighlightCard {
   archived?: boolean;
   sourceRemoved?: boolean;
   restored?: boolean;
+  review?: ReviewState | null;
 }
 
 export interface IBookNoteSummary {
@@ -90,6 +95,8 @@ export interface IBookNoteSummary {
   annotationCount: number;
   status: string;
   cover: string;
+  // ISO date the book was last opened in Apple Books; empty when unknown.
+  lastOpened: string;
 }
 
 export interface ImportResult {

@@ -2,6 +2,7 @@ import type { App, TFile } from 'obsidian';
 import type { IBookHighlightsPluginSettings, IBookNoteSummary, IHighlightCard } from '../types';
 import { compareLocations } from '../utils/cardIdentity';
 import { parseFrontmatter, patchProperties, extractSection, setSection, textValue } from '../utils/markdown';
+import { readReview, reviewProperties, schedule, type Grade } from './review';
 
 const getCardFile = (app: App, path: string): TFile => {
   const file = app.vault.getFileByPath(path);
@@ -55,6 +56,7 @@ export const getHighlightCards = async (app: App, settings: IBookHighlightsPlugi
         archived: frontmatter.archived === true,
         sourceRemoved: frontmatter.source_removed === true,
         restored: frontmatter.restored === true,
+        review: readReview(frontmatter),
       };
       cache!.set(file.path, { stamp, card });
       return card;
@@ -95,6 +97,7 @@ export const getBookSummaries = async (app: App, settings: IBookHighlightsPlugin
         annotationCount: Number(frontmatter.annotation_count || 0),
         status: String(frontmatter.status || ''),
         cover: String(frontmatter.cover || ''),
+        lastOpened: String(frontmatter.last_opened || ''),
       };
     }),
   );
@@ -128,4 +131,13 @@ export const deleteArchivedCard = async (app: App, card: IHighlightCard): Promis
   const fm = parseFrontmatter(await app.vault.read(file));
   if (fm.archived !== true || fm.source_removed !== true) throw new Error('只能清理已移除的摘录');
   await app.fileManager.trashFile(file);
+};
+
+export const recordReview = async (app: App, card: IHighlightCard, grade: Grade, today: string): Promise<void> => {
+  await setHighlightProperties(app, card, reviewProperties(schedule(card.review ?? null, grade, today)));
+};
+
+// Suspended cards stay out of the daily review; resuming keeps their schedule.
+export const setReviewSuspended = async (app: App, card: IHighlightCard, suspended: boolean): Promise<void> => {
+  await setHighlightProperties(app, card, { review_suspended: suspended });
 };

@@ -409,6 +409,18 @@ test('damaged legacy metadata comments do not fail the book import', async () =>
   }
 });
 
+test('re-import keeps daily review progress on cards', async () => {
+  const { recordReview } = await import('../../src/modules/highlightRepository');
+  await sync();
+  const [first] = await cards();
+  await recordReview(env.app, first, 3, '2026-09-27');
+  annotations[0].note = '来源想法更新';
+  await sync();
+  const [after] = await cards();
+  expect(after.review).toMatchObject({ reps: 1, last: '2026-09-27', due: '2026-10-01' });
+  expect(after.appleNote).toBe('来源想法更新');
+});
+
 test('source thought updates do not silently fill local notes', async () => {
   await sync();
   annotations[0].note = '新的想法';
