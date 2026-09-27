@@ -1,9 +1,13 @@
+import { parse, stringify } from 'yaml';
+export const parseYaml = parse;
+export const stringifyYaml = stringify;
 import { vi } from 'vitest';
 
 export const NoticeMock = vi.fn();
 export class Notice {
+  hide() {}
   constructor(...args: any[]) {
-    return NoticeMock(...args);
+    NoticeMock(...args);
   }
 }
 
@@ -345,3 +349,19 @@ export class TFile {
   name: string = '';
   basename: string = '';
 }
+
+export class MarkdownRenderChild {
+  constructor(public containerEl: HTMLElement) {}
+  registerEvent() {}
+  register() {}
+}
+
+export class Component {
+  load() {}
+  unload() {}
+}
+export const MarkdownRenderer = {
+  render: async (_app: any, text: string, el: any) => {
+    el.textContent = text;
+  },
+};

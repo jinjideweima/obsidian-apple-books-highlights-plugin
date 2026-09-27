@@ -8,9 +8,16 @@ export interface IBook {
   bookFinishedDate: number | null;
   bookCoverUrl: string;
   bookPath?: string;
+  bookRemoved?: boolean;
+  authors?: string[];
+  publisher?: string;
+  translators?: string[];
+  publishedDate?: string;
+  isbn?: string;
 }
 
 export interface IAnnotation {
+  sourceAnnotationId?: string;
   assetId: string;
   chapter: string;
   contextualText: string;
@@ -40,16 +47,15 @@ export type IHighlightsSortingCriterion =
 export interface IBookHighlightsPluginSettings {
   highlightsFolder: string;
   backup: boolean;
+  // Number of newest backup snapshots to keep; 0 keeps all of them.
+  backupRetention?: number;
   importOnStart: boolean;
-  highlightsSortingCriterion: IHighlightsSortingCriterion;
   template: string;
   filenameTemplate: string;
   coverPathTemplate?: string;
   // Vault link the dashboard "书籍" button opens (e.g. a library MOC or Base view).
   libraryPagePath?: string;
-  keepMeSectionOpeningDelimiter: string;
-  keepMeSectionClosingDelimiter: string;
-  keepMeSectionData?: Record<string, string>;
+  lastImport?: ImportResult & { at: string };
 }
 
 export interface IHighlightCard {
@@ -71,6 +77,9 @@ export interface IHighlightCard {
   highlight: string;
   appleNote: string;
   localNote: string;
+  archived?: boolean;
+  sourceRemoved?: boolean;
+  restored?: boolean;
 }
 
 export interface IBookNoteSummary {
@@ -81,4 +90,15 @@ export interface IBookNoteSummary {
   annotationCount: number;
   status: string;
   cover: string;
+}
+
+export interface ImportResult {
+  created: number;
+  updated: number;
+  unchanged: number;
+  archived: number;
+  retained: number;
+  books: number;
+  failures: string[];
+  warnings: string[];
 }

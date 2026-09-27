@@ -32,7 +32,7 @@ features:
     details: 自动从 EPUB 文件中解析章节和段落上下文，即使 Apple Books 未提供章节信息
   - icon: 🎨
     title: 模板可定制
-    details: 使用 Handlebars + Markdown 自定义书籍主笔记模板，支持保留区（Keep Me）机制保护个人笔记
+    details: 使用 Handlebars + Markdown 自定义书籍主笔记模板，重新导入时保留正文与手动修改的属性
   - icon: 🔒
     title: 数据安全
     details: 支持导入前自动备份，重导入时保留收藏状态和个人笔记，清理孤儿卡片

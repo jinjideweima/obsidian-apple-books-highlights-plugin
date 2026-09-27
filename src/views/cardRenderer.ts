@@ -1,6 +1,8 @@
-import { Modal, Notice, Platform, Setting, type App } from 'obsidian';
+import { Component, MarkdownRenderer, Modal, Notice, Platform, Setting, type App } from 'obsidian';
 import type { IHighlightCard } from '../types';
-import { setHighlightFavorite, setHighlightLocalNote } from '../modules/highlightRepository';
+import { setHighlightFavorite, setHighlightLocalNote, setHighlightProperties, deleteArchivedCard } from '../modules/highlightRepository';
+import { cardLink } from '../utils/cardIdentity';
+import { attachNoteLinks } from './noteLinks';
 
 interface BoardFilters {
   bookId?: string;
@@ -8,6 +10,7 @@ interface BoardFilters {
 
 interface ToolbarOptions {
   initialBookTitle?: string;
+  initialArchived?: boolean;
   initialOnlyFavorite?: boolean;
   initialOnlyUnreviewed?: boolean;
   initialOnlyWithAppleNote?: boolean;
@@ -15,6 +18,9 @@ interface ToolbarOptions {
 }
 
 interface RenderContext {
+  readOnly?: boolean;
+  snapshotLabel?: string;
+  initialArchived?: boolean;
   onRefresh: () => Promise<void>;
   initialOnlyFavorite?: boolean;
   initialOnlyUnreviewed?: boolean;
@@ -24,6 +30,7 @@ interface RenderContext {
 
 interface ToolbarState {
   query: string;
+  archived: boolean;
   bookTitle: string;
   bookAuthor: string;
   chapter: string;
@@ -42,6 +49,12 @@ interface RenderOptions {
 }
 
 const DEFAULT_MAX_CHARS = 500;
+
+const noteComponents = new Map<HTMLElement, Component>();
+const releaseCard = (el: HTMLElement) => {
+  noteComponents.get(el)?.unload();
+  noteComponents.delete(el);
+};
 
 const boundTocDocuments = new WeakSet<Document>();
 const boundTocCleanups: Array<() => void> = [];
@@ -84,7 +97,7 @@ const getUniqueValues = (cards: IHighlightCard[], getValue: (card: IHighlightCar
 };
 
 const applyToolbarState = (cards: IHighlightCard[], state: ToolbarState): IHighlightCard[] => {
-  let filteredCards = cards;
+  let filteredCards = cards.filter((card) => Boolean(card.archived) === state.archived);
 
   if (state.query) {
     filteredCards = filteredCards.filter((card) => {
@@ -200,9 +213,8 @@ const bindNoteToc = (container: HTMLElement): void => {
     }
 
     const scope = getTocScope(link);
-    const target =
-      scope.querySelector<HTMLElement>(`.abkc-root [data-highlight-index="${CSS.escape(highlightIndex)}"]`) ||
-      doc.querySelector<HTMLElement>(`.abkc-root [data-highlight-index="${CSS.escape(highlightIndex)}"]`);
+    if (scope.querySelectorAll('.abkc-board').length !== 1) return;
+    const target = scope.querySelector<HTMLElement>(`.abkc-root [data-highlight-index="${CSS.escape(highlightIndex)}"]`);
 
     if (!target) {
       return;
@@ -243,6 +255,9 @@ const createSelect = (
 };
 
 const setSelectOptions = (select: HTMLSelectElement, placeholder: string, values: string[]): void => {
+  const signature = JSON.stringify([placeholder, values]);
+  if (select.dataset.options === signature) return;
+  select.dataset.options = signature;
   const previousValue = select.value;
 
   select.empty();
@@ -252,7 +267,8 @@ const setSelectOptions = (select: HTMLSelectElement, placeholder: string, values
     select.createEl('option', { text: value, value });
   }
 
-  select.value = values.includes(previousValue) ? previousValue : '';
+  if (previousValue && !values.includes(previousValue)) select.createEl('option', { text: previousValue, value: previousValue });
+  select.value = previousValue;
 };
 
 const createToggle = (container: HTMLElement, label: string, onChange: (enabled: boolean) => void): HTMLLabelElement => {
@@ -285,6 +301,7 @@ const renderToolbar = (
   const actionsGroup = toolbar.createDiv({ cls: 'abkc-toolbar-group abkc-toolbar-actions-group' });
   const state: ToolbarState = {
     query: '',
+    archived: Boolean(options.initialArchived),
     bookTitle: options.initialBookTitle || '',
     bookAuthor: '',
     chapter: '',
@@ -364,6 +381,11 @@ const renderToolbar = (
     state.color = colorSelect.value;
     runFilter();
   });
+  const archiveSelect = createSelect(filtersGroup, '正常摘录', ['已移除摘录'], (value) => {
+    state.archived = value === '已移除摘录';
+    runFilter();
+  });
+  archiveSelect.value = state.archived ? '已移除摘录' : '';
   const favoriteToggle = createToggle(togglesGroup, '只看收藏', (enabled) => {
     state.onlyFavorite = enabled;
     runFilter();
@@ -405,24 +427,28 @@ const renderToolbar = (
     text: '随机一组',
     cls: 'abkc-button',
   });
+  let randomPaths: string[] | null = null;
   const runFilter = () => {
+    randomPaths = null;
     state.query = searchInput.value.trim().toLowerCase();
-    onFilter(applyToolbarState(cards, state));
+    onFilter(applyToolbarState(applyFilters(cards, filters), state));
   };
 
+  searchInput.addEventListener('input', runFilter);
   searchInput.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
       runFilter();
     }
   });
   randomButton.addEventListener('click', () => {
-    const filteredCards = applyToolbarState(cards, state);
+    const filteredCards = applyToolbarState(applyFilters(cards, filters), state);
     const shuffledCards = [...filteredCards];
     for (let i = shuffledCards.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [shuffledCards[i], shuffledCards[j]] = [shuffledCards[j], shuffledCards[i]];
     }
     shuffledCards.splice(12);
+    randomPaths = shuffledCards.map((card) => card.path);
     onFilter(shuffledCards);
   });
   const resetButton = actionsGroup.createEl('button', {
@@ -431,6 +457,8 @@ const renderToolbar = (
   });
   resetButton.addEventListener('click', () => {
     state.query = '';
+    state.archived = Boolean(options.initialArchived);
+    archiveSelect.value = state.archived ? '已移除摘录' : '';
     state.bookTitle = options.initialBookTitle || '';
     state.bookAuthor = '';
     state.chapter = '';
@@ -446,11 +474,29 @@ const renderToolbar = (
     favoriteToggle.querySelector<HTMLInputElement>('input')!.checked = state.onlyFavorite;
     unreviewedToggle.querySelector<HTMLInputElement>('input')!.checked = state.onlyUnreviewed;
     updateChapterOptions();
-    onFilter(applyToolbarState(cards, state));
+    onFilter(applyToolbarState(applyFilters(cards, filters), state));
   });
+  return () => {
+    setSelectOptions(
+      bookSelect,
+      '全部书籍',
+      getUniqueValues(cards, (c) => c.bookTitle),
+    );
+    setSelectOptions(
+      authorSelect,
+      '全部作者',
+      getUniqueValues(cards, (c) => c.bookAuthor),
+    );
+    // Retain the filter value even when it currently has no matching cards.
+    updateChapterOptions();
+    const filtered = applyToolbarState(applyFilters(cards, filters), state);
+    const byPath = new Map(filtered.map((card) => [card.path, card]));
+    onFilter(randomPaths ? randomPaths.map((path) => byPath.get(path)).filter((card): card is IHighlightCard => Boolean(card)) : filtered);
+  };
 };
 
 class EditNoteModal extends Modal {
+  private disposeLinks?: () => void;
   private card: IHighlightCard;
   private onSave: (note: string) => Promise<void>;
 
@@ -467,6 +513,8 @@ class EditNoteModal extends Modal {
     contentEl.createEl('p', { text: this.card.bookTitle, cls: 'abkc-modal-muted' });
     const textarea = contentEl.createEl('textarea', { cls: 'abkc-note-editor' });
     textarea.value = this.card.localNote;
+    contentEl.createEl('p', { text: '输入 [[ 后搜索笔记，↑↓选择、回车插入。保存后会建立原生双向链接。' });
+    this.disposeLinks = attachNoteLinks(this.app, textarea, contentEl, this.card.path);
 
     new Setting(contentEl)
       .addButton((button) => {
@@ -474,8 +522,12 @@ class EditNoteModal extends Modal {
           .setButtonText('保存')
           .setCta()
           .onClick(async () => {
-            await this.onSave(textarea.value);
-            this.close();
+            try {
+              await this.onSave(textarea.value);
+              this.close();
+            } catch (error) {
+              showNotice(`保存失败：${error instanceof Error ? error.message : String(error)}`);
+            }
           });
       })
       .addButton((button) => {
@@ -486,6 +538,7 @@ class EditNoteModal extends Modal {
   }
 
   onClose(): void {
+    this.disposeLinks?.();
     this.contentEl.empty();
   }
 }
@@ -522,21 +575,34 @@ const renderCard = (app: App, board: HTMLElement, card: IHighlightCard, context:
 
   if (options.showAppleNote && card.appleNote) {
     const note = cardEl.createDiv({ cls: 'abkc-card-note' });
-    note.createDiv({ text: '想法', cls: 'abkc-card-label' });
+    note.createDiv({ text: 'Apple Books 想法', cls: 'abkc-card-label' });
     note.createDiv({ text: truncate(card.appleNote, options.maxChars) });
   }
 
   if (options.showLocalNote && card.localNote.trim()) {
     const localNoteEl = cardEl.createDiv({ cls: 'abkc-card-note abkc-card-localnote' });
-    localNoteEl.createDiv({ text: '笔记', cls: 'abkc-card-label' });
-    renderInlineHighlight(localNoteEl.createDiv(), card.localNote);
+    localNoteEl.createDiv({ text: '我的笔记', cls: 'abkc-card-label' });
+    const component = new Component();
+    component.load();
+    noteComponents.set(cardEl, component);
+    void MarkdownRenderer.render(app, card.localNote, localNoteEl.createDiv(), card.path, component);
   }
 
   cardEl.createDiv({ cls: 'abkc-card-rule' });
   const meta = cardEl.createDiv({ cls: 'abkc-card-meta' });
   meta.createDiv({ text: card.bookTitle });
 
+  if (card.sourceRemoved)
+    cardEl.createDiv({ text: card.archived ? '已移除摘录 · 可恢复' : 'Apple Books 中已移除 · 已保留整理成果', cls: 'abkc-source-status' });
   const actions = cardEl.createDiv({ cls: 'abkc-card-actions' });
+  if (context.readOnly) {
+    actions.createDiv({ text: '备份快照 · 只读', cls: 'abkc-source-status' });
+    return cardEl;
+  }
+  actions.createEl('button', { text: '复制摘录链接', cls: 'abkc-action-button' }).addEventListener('click', async () => {
+    await navigator.clipboard.writeText(cardLink(card.path, `${card.bookTitle} · ${card.highlight.slice(0, 28)}`));
+    showNotice('已复制链接，可粘贴到其他笔记');
+  });
   actions.createEl('button', { text: card.favorite ? '已收藏' : '收藏', cls: 'abkc-action-button' }).addEventListener('click', async () => {
     await setHighlightFavorite(app, card, !card.favorite);
     showNotice(!card.favorite ? '已收藏摘录' : '已取消收藏');
@@ -544,11 +610,27 @@ const renderCard = (app: App, board: HTMLElement, card: IHighlightCard, context:
   });
   actions.createEl('button', { text: '编辑', cls: 'abkc-action-button' }).addEventListener('click', () => {
     new EditNoteModal(app, card, async (note) => {
-      await setHighlightLocalNote(app, card, note);
+      await setHighlightLocalNote(app, card, note, card.localNote);
       showNotice('笔记已写回摘录文件');
       await context.onRefresh();
     }).open();
   });
+  actions
+    .createEl('button', { text: card.reviewed ? '已整理' : '标记已整理', cls: 'abkc-action-button' })
+    .addEventListener('click', async () => {
+      await setHighlightProperties(app, card, { reviewed: !card.reviewed });
+      await context.onRefresh();
+    });
+
+  if (card.archived) {
+    actions.createEl('button', { text: '恢复', cls: 'abkc-action-button' }).addEventListener('click', async () => {
+      await setHighlightProperties(app, card, { archived: false, restored: true });
+      await context.onRefresh();
+    });
+    actions.createEl('button', { text: '彻底删除…', cls: 'abkc-action-button' }).addEventListener('click', () => {
+      new DeleteCardModal(app, card, context.onRefresh).open();
+    });
+  }
   actions.createEl('button', { text: '复制', cls: 'abkc-action-button' }).addEventListener('click', async () => {
     await navigator.clipboard.writeText(`> ${card.highlight}\n\n— ${card.bookTitle}`);
     showNotice('摘录已复制到剪贴板');
@@ -557,7 +639,32 @@ const renderCard = (app: App, board: HTMLElement, card: IHighlightCard, context:
     window.sessionStorage.setItem('abkc:last-card', card.annotationId);
     await app.workspace.openLinkText(card.path, '', true);
   });
+  return cardEl;
 };
+
+const boardControllers = new WeakMap<HTMLElement, { key: string; update: (cards: IHighlightCard[]) => void }>();
+class DeleteCardModal extends Modal {
+  constructor(
+    app: App,
+    private card: IHighlightCard,
+    private refresh: () => Promise<void>,
+  ) {
+    super(app);
+  }
+  onOpen(): void {
+    this.contentEl.createEl('h2', { text: '删除这条已移除摘录？' });
+    this.contentEl.createEl('p', { text: '文件将按 Obsidian 的删除设置放入回收站。此操作不会修改 Apple Books。' });
+    new Setting(this.contentEl)
+      .addButton((b) =>
+        b.setButtonText('删除摘录文件').onClick(async () => {
+          await deleteArchivedCard(this.app, this.card);
+          await this.refresh();
+          this.close();
+        }),
+      )
+      .addButton((b) => b.setButtonText('取消').onClick(() => this.close()));
+  }
+}
 
 export const renderCardsBoard = (
   app: App,
@@ -566,6 +673,23 @@ export const renderCardsBoard = (
   filters: BoardFilters = {},
   context: RenderContext = { onRefresh: async () => {} },
 ) => {
+  const key = JSON.stringify([
+    filters,
+    context.readOnly,
+    context.snapshotLabel,
+    context.initialArchived,
+    context.initialOnlyFavorite,
+    context.initialOnlyUnreviewed,
+    context.initialOnlyWithAppleNote,
+    context.initialOnlyWithChapter,
+  ]);
+  const controller = boardControllers.get(container);
+  if (controller?.key === key && container.querySelector('.abkc-board')) {
+    controller.update(cards);
+    return;
+  }
+  cards = [...cards];
+  for (const el of Array.from(container.querySelectorAll<HTMLElement>('.abkc-card'))) releaseCard(el);
   container.empty();
   container.addClass('abkc-root');
   container.toggleClass('abkc-mobile', Platform.isMobile);
@@ -575,6 +699,7 @@ export const renderCardsBoard = (
   if (!filters.bookId) {
     title.createEl('h2', { text: 'Apple Books 摘录' });
   }
+  if (context.snapshotLabel) title.createDiv({ text: context.snapshotLabel, cls: 'abkc-source-status' });
   const titleMeta = title.createDiv({ cls: 'abkc-title-meta' });
   if (context.initialOnlyWithAppleNote) {
     titleMeta.createSpan({ text: '想法', cls: 'abkc-filter-chip' });
@@ -593,8 +718,16 @@ export const renderCardsBoard = (
   const toolbarHost = container.createDiv();
   const board = container.createDiv({ cls: 'abkc-board' });
   const renderOptions: RenderOptions = { showAppleNote: true, showLocalNote: false, maxChars: DEFAULT_MAX_CHARS };
+  const nodes = new Map<string, { element: HTMLElement; fingerprint: string }>();
   const render = (filteredCards: IHighlightCard[], scrollToLast = false) => {
-    board.empty();
+    board.querySelector('.abkc-empty')?.remove();
+    const paths = new Set(filteredCards.map((c) => c.path));
+    for (const [path, node] of nodes)
+      if (!paths.has(path)) {
+        releaseCard(node.element);
+        node.element.remove();
+        nodes.delete(path);
+      }
     countEl.setText(`${filteredCards.length} 张卡片`);
 
     if (filteredCards.length === 0) {
@@ -603,7 +736,23 @@ export const renderCardsBoard = (
     }
 
     for (const card of filteredCards) {
-      renderCard(app, board, card, context, renderOptions);
+      const fingerprint = JSON.stringify([card, renderOptions]);
+      const old = nodes.get(card.path);
+      if (old?.fingerprint !== fingerprint) {
+        const element = renderCard(app, board, card, context, renderOptions);
+        if (old) {
+          releaseCard(old.element);
+          old.element.replaceWith(element);
+        }
+        nodes.set(card.path, { element, fingerprint });
+      }
+    }
+    // Reorder only when necessary; unchanged elements keep focus and DOM identity.
+    let cursor = board.firstElementChild;
+    for (const card of filteredCards) {
+      const element = nodes.get(card.path)!.element;
+      if (element !== cursor) board.insertBefore(element, cursor);
+      cursor = element.nextElementSibling;
     }
 
     // Only scroll to the last-opened card on the initial render (returning from a card's page).
@@ -627,6 +776,7 @@ export const renderCardsBoard = (
   const initialBookTitle = getBookTitleFromFilter(cards, filters);
   const initialState: ToolbarState = {
     query: '',
+    archived: Boolean(context.initialArchived),
     bookTitle: initialBookTitle,
     bookAuthor: '',
     chapter: '',
@@ -637,7 +787,8 @@ export const renderCardsBoard = (
     onlyWithChapter: Boolean(context.initialOnlyWithChapter),
   };
 
-  renderToolbar(toolbarHost, cards, render, filters, renderOptions, {
+  const refresh = renderToolbar(toolbarHost, cards, render, filters, renderOptions, {
+    initialArchived: context.initialArchived,
     initialBookTitle,
     initialOnlyFavorite: Boolean(context.initialOnlyFavorite),
     initialOnlyUnreviewed: Boolean(context.initialOnlyUnreviewed),
@@ -645,10 +796,24 @@ export const renderCardsBoard = (
     initialOnlyWithChapter: Boolean(context.initialOnlyWithChapter),
   });
   render(applyToolbarState(applyFilters(cards, filters), initialState), true);
+  boardControllers.set(container, {
+    key,
+    update: (next) => {
+      cards.splice(0, cards.length, ...next);
+      refresh();
+    },
+  });
   bindNoteToc(container);
 };
 
+export const cleanupCardsBoard = (container: HTMLElement): void => {
+  for (const el of Array.from(container.querySelectorAll<HTMLElement>('.abkc-card'))) releaseCard(el);
+  boardControllers.delete(container);
+};
+
 export const cleanupCardRenderer = (): void => {
+  for (const component of noteComponents.values()) component.unload();
+  noteComponents.clear();
   for (const cleanup of boundTocCleanups) {
     cleanup();
   }

@@ -1,78 +1,7 @@
 import type { App, TFile } from 'obsidian';
 import type { IBookHighlightsPluginSettings, IBookNoteSummary, IHighlightCard } from '../types';
-
-const parseFrontmatter = (content: string): Record<string, string | boolean | number> => {
-  const match = content.match(/^---\n([\s\S]*?)\n---/);
-
-  if (!match) {
-    return {};
-  }
-
-  const data: Record<string, string | boolean | number> = {};
-  for (const line of match[1].split('\n')) {
-    const separatorIndex = line.indexOf(':');
-
-    if (separatorIndex === -1 || line.startsWith('  - ')) {
-      continue;
-    }
-
-    const key = line.slice(0, separatorIndex).trim();
-    const rawValue = line.slice(separatorIndex + 1).trim();
-    const unquotedValue = rawValue.replace(/^"(.*)"$/, '$1');
-
-    if (unquotedValue === 'true') {
-      data[key] = true;
-    } else if (unquotedValue === 'false') {
-      data[key] = false;
-    } else if (/^\d+$/.test(unquotedValue)) {
-      data[key] = Number(unquotedValue);
-    } else {
-      data[key] = unquotedValue;
-    }
-  }
-
-  return data;
-};
-
-const extractSection = (content: string, heading: string): string => {
-  const escapedHeading = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const match = content.match(new RegExp(`^## ${escapedHeading}\\s*\\n([\\s\\S]*?)(?=^## |$(?![\\s\\S]))`, 'm'));
-
-  if (!match) {
-    return '';
-  }
-
-  return match[1].replace(/^> ?/gm, '').trim();
-};
-
-const updateFrontmatterValue = (content: string, key: string, value: string): string => {
-  const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
-
-  if (!frontmatterMatch) {
-    return content;
-  }
-
-  const frontmatter = frontmatterMatch[1];
-  const keyRegex = new RegExp(`^${key}:.*$`, 'm');
-  const updatedFrontmatter = keyRegex.test(frontmatter)
-    ? frontmatter.replace(keyRegex, `${key}: ${value}`)
-    : `${frontmatter}\n${key}: ${value}`;
-
-  return content.replace(/^---\n[\s\S]*?\n---/, `---\n${updatedFrontmatter}\n---`);
-};
-
-const setSection = (content: string, heading: string, value: string): string => {
-  const escapedHeading = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const sectionRegex = new RegExp(`## ${escapedHeading}\\n\\n[\\s\\S]*?(?=\\n## |$)`);
-  const normalizedValue = value.trim();
-  const replacement = `## ${heading}\n\n${normalizedValue}`;
-
-  if (sectionRegex.test(content)) {
-    return content.replace(sectionRegex, replacement);
-  }
-
-  return `${content.trim()}\n\n${replacement}\n`;
-};
+import { compareLocations } from '../utils/cardIdentity';
+import { parseFrontmatter, patchProperties, extractSection, setSection, textValue } from '../utils/markdown';
 
 const getCardFile = (app: App, path: string): TFile => {
   const file = app.vault.getFileByPath(path);
@@ -84,21 +13,32 @@ const getCardFile = (app: App, path: string): TFile => {
   return file;
 };
 
+const cardCaches = new WeakMap<App, Map<string, { stamp: string; card: IHighlightCard }>>();
 export const getHighlightCards = async (app: App, settings: IBookHighlightsPluginSettings): Promise<IHighlightCard[]> => {
   const cardsRoot = `${settings.highlightsFolder}/cards/`;
   const files = app.vault.getMarkdownFiles().filter((file) => file.path.startsWith(cardsRoot));
 
+  let cache = cardCaches.get(app);
+  if (!cache) {
+    cache = new Map();
+    cardCaches.set(app, cache);
+  }
+  const paths = new Set(files.map((f) => f.path));
+  for (const path of cache.keys()) if (!paths.has(path)) cache.delete(path);
   const cards = await Promise.all(
     files.map(async (file: TFile) => {
+      const stamp = `${file.stat?.mtime}:${file.stat?.size}`;
+      const cached = cache!.get(file.path);
+      if (file.stat && cached?.stamp === stamp) return cached.card;
       const content = await app.vault.cachedRead(file);
       const frontmatter = parseFrontmatter(content);
 
-      return {
+      const card: IHighlightCard = {
         path: file.path,
         bookTitle: String(frontmatter.book_title || ''),
-        bookAuthor: String(frontmatter.book_author || ''),
+        bookAuthor: textValue(frontmatter.authors || frontmatter.book_author),
         bookId: String(frontmatter.book_id || ''),
-        annotationId: String(frontmatter.annotation_id || ''),
+        annotationId: String(frontmatter.card_id || frontmatter.annotation_id || ''),
         sourceKey: String(frontmatter.source_key || ''),
         highlightLocation: String(frontmatter.highlight_location || ''),
         highlightCreationDate: Number(frontmatter.highlight_creation_date || 0),
@@ -106,24 +46,33 @@ export const getHighlightCards = async (app: App, settings: IBookHighlightsPlugi
         highlightColor: String(frontmatter.highlight_color || 'plain'),
         chapter: String(frontmatter.chapter || ''),
         highlightIndex: Number(frontmatter.highlight_index || 0),
-        favorite: Boolean(frontmatter.favorite),
-        reviewed: Boolean(frontmatter.reviewed),
+        favorite: frontmatter.favorite === true,
+        reviewed: frontmatter.reviewed === true,
         linkedAtomicNote: String(frontmatter.linked_atomic_note || ''),
-        highlight: extractSection(content, '划线'),
+        highlight: extractSection(content, '划线').replace(/^> ?/gm, ''),
         appleNote: extractSection(content, '想法') || extractSection(content, '我的想法'),
         localNote: extractSection(content, '笔记'),
+        archived: frontmatter.archived === true,
+        sourceRemoved: frontmatter.source_removed === true,
+        restored: frontmatter.restored === true,
       };
+      cache!.set(file.path, { stamp, card });
+      return card;
     }),
   );
 
-  return cards.sort((a, b) => {
-    const bookComparison = a.bookTitle.localeCompare(b.bookTitle);
-
-    if (bookComparison !== 0) {
-      return bookComparison;
-    }
-
-    return a.highlightIndex - b.highlightIndex;
+  cards.sort(
+    (a, b) =>
+      a.bookId.localeCompare(b.bookId) ||
+      compareLocations(a.highlightLocation, b.highlightLocation) ||
+      a.annotationId.localeCompare(b.annotationId),
+  );
+  const counters = new Map<string, number>();
+  return cards.map((card) => {
+    const key = `${card.bookId}:${Boolean(card.archived)}`;
+    const n = (counters.get(key) || 0) + 1;
+    counters.set(key, n);
+    return { ...card, highlightIndex: n };
   });
 };
 
@@ -136,11 +85,12 @@ export const getBookSummaries = async (app: App, settings: IBookHighlightsPlugin
     files.map(async (file: TFile) => {
       const content = await app.vault.cachedRead(file);
       const frontmatter = parseFrontmatter(content);
+      if (frontmatter.type !== 'book' || frontmatter.source !== 'Apple Books' || /-bk-\d+/.test(file.path)) return null;
 
       return {
         path: file.path,
         title: String(frontmatter.title || file.basename),
-        author: String(frontmatter.author || ''),
+        author: textValue(frontmatter.author ?? frontmatter.authors),
         bookId: String(frontmatter.book_id || ''),
         annotationCount: Number(frontmatter.annotation_count || 0),
         status: String(frontmatter.status || ''),
@@ -149,21 +99,33 @@ export const getBookSummaries = async (app: App, settings: IBookHighlightsPlugin
     }),
   );
 
-  return books.sort((a, b) => b.annotationCount - a.annotationCount);
+  return books.filter((book): book is IBookNoteSummary => book !== null).sort((a, b) => b.annotationCount - a.annotationCount);
 };
 
 export const setHighlightFavorite = async (app: App, card: IHighlightCard, favorite: boolean): Promise<void> => {
   const file = getCardFile(app, card.path);
-  const content = await app.vault.read(file);
-  const updatedContent = updateFrontmatterValue(content, 'favorite', favorite ? 'true' : 'false');
-
-  await app.vault.modify(file, updatedContent);
+  cardCaches.get(app)?.delete(file.path);
+  await app.vault.process(file, (content) => patchProperties(content, { favorite }));
 };
 
-export const setHighlightLocalNote = async (app: App, card: IHighlightCard, note: string): Promise<void> => {
+export const setHighlightLocalNote = async (app: App, card: IHighlightCard, note: string, expected?: string): Promise<void> => {
   const file = getCardFile(app, card.path);
-  const content = await app.vault.read(file);
-  const updatedContent = setSection(content, '笔记', note);
+  cardCaches.get(app)?.delete(file.path);
+  await app.vault.process(file, (content) => {
+    if (expected !== undefined && extractSection(content, '笔记') !== expected)
+      throw new Error('笔记在编辑期间已变化，请重新打开后合并内容。');
+    return setSection(content, '笔记', note);
+  });
+};
 
-  await app.vault.modify(file, updatedContent);
+export const setHighlightProperties = async (app: App, card: IHighlightCard, values: Record<string, unknown>): Promise<void> => {
+  const file = getCardFile(app, card.path);
+  cardCaches.get(app)?.delete(file.path);
+  await app.vault.process(file, (content) => patchProperties(content, values));
+};
+export const deleteArchivedCard = async (app: App, card: IHighlightCard): Promise<void> => {
+  const file = getCardFile(app, card.path);
+  const fm = parseFrontmatter(await app.vault.read(file));
+  if (fm.archived !== true || fm.source_removed !== true) throw new Error('只能清理已移除的摘录');
+  await app.fileManager.trashFile(file);
 };

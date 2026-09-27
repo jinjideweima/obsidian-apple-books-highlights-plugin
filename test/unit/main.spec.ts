@@ -1,5 +1,4 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
-import * as aggregatedBooksAndAnnotations from '../fixtures/annotationProcessing/aggregatedBooksAndAnnotations.json';
 import { NoticeMock } from '../mocks/obsidian';
 
 vi.mock('obsidian', async () => {
@@ -46,12 +45,14 @@ describe('IBookHighlightsPlugin', () => {
     plugin.manifest = { name: 'Apple Books Test Mock' } as any;
     plugin.app = {
       vault: {
+        adapter: { exists: vi.fn().mockResolvedValue(false) },
         getFolderByPath: vi.fn().mockReturnValue({}),
         getFileByPath: vi.fn(),
         createFolder: vi.fn(),
         create: vi.fn(),
       },
       workspace: {
+        iterateAllLeaves: vi.fn(),
         // Fix: support async callbacks in onLayoutReady
         onLayoutReady: vi.fn().mockImplementation(async (cb: () => Promise<void> | void) => await cb()),
         on: vi.fn(),
@@ -83,12 +84,8 @@ describe('IBookHighlightsPlugin', () => {
       highlightsFolder: 'folder',
       backup: true,
       importOnStart: false,
-      highlightsSortingCriterion: 'creationDateOldToNew' as const,
       template: 'template',
       filenameTemplate: 'filename',
-      keepMeSectionOpeningDelimiter: '%% keep-me %%',
-      keepMeSectionClosingDelimiter: '%% /keep-me %%',
-      keepMeSectionData: {},
     };
     plugin.settings = validSettings;
     await plugin.saveSettings();
@@ -98,7 +95,16 @@ describe('IBookHighlightsPlugin', () => {
   describe('Import on start', () => {
     test('Should import all highlights on start and ensure that backup is created when backup is enabled', async () => {
       mockLoadData.mockResolvedValueOnce({ importOnStart: true, backup: true } as any);
-      importHighlightsMock.mockResolvedValueOnce(aggregatedBooksAndAnnotations);
+      importHighlightsMock.mockResolvedValueOnce({
+        books: 4,
+        created: 4,
+        updated: 0,
+        unchanged: 0,
+        archived: 0,
+        retained: 0,
+        warnings: [],
+        failures: [],
+      });
 
       const onLayoutReadyPromise = new Promise<void>((resolve) => {
         (plugin.app.workspace.onLayoutReady as any).mockImplementationOnce(async (cb: () => Promise<void> | void) => {
@@ -110,14 +116,28 @@ describe('IBookHighlightsPlugin', () => {
       await plugin.onload();
       await onLayoutReadyPromise;
 
-      expect(backupAllHighlightsMock).toHaveBeenCalled();
-      expect(importHighlightsMock).toHaveBeenCalledWith(plugin.vault, expect.anything(), 'modify');
-      expect(NoticeMock).toHaveBeenCalledWith('Apple Books 摘录导入成功');
+      expect(importHighlightsMock).toHaveBeenCalledWith(
+        plugin.vault,
+        expect.objectContaining({ backup: true }),
+        expect.anything(),
+        undefined,
+      );
+      expect(importHighlightsMock).toHaveBeenCalledWith(plugin.vault, expect.anything(), 'modify', undefined);
+      expect(NoticeMock).toHaveBeenCalledWith(expect.stringContaining('已处理'), 10000);
     });
 
     test('Should import all highlights on start without creating a backup when backup is disabled', async () => {
       mockLoadData.mockResolvedValueOnce({ importOnStart: true, backup: false } as any);
-      importHighlightsMock.mockResolvedValueOnce(aggregatedBooksAndAnnotations);
+      importHighlightsMock.mockResolvedValueOnce({
+        books: 4,
+        created: 4,
+        updated: 0,
+        unchanged: 0,
+        archived: 0,
+        retained: 0,
+        warnings: [],
+        failures: [],
+      });
 
       const onLayoutReadyPromise = new Promise<void>((resolve) => {
         (plugin.app.workspace.onLayoutReady as any).mockImplementationOnce(async (cb: () => Promise<void> | void) => {
@@ -130,13 +150,22 @@ describe('IBookHighlightsPlugin', () => {
       await onLayoutReadyPromise;
 
       expect(backupAllHighlightsMock).not.toHaveBeenCalled();
-      expect(importHighlightsMock).toHaveBeenCalledWith(plugin.vault, expect.anything(), 'modify');
-      expect(NoticeMock).toHaveBeenCalledWith('Apple Books 摘录导入成功');
+      expect(importHighlightsMock).toHaveBeenCalledWith(plugin.vault, expect.anything(), 'modify', undefined);
+      expect(NoticeMock).toHaveBeenCalledWith(expect.stringContaining('已处理'), 10000);
     });
 
     test('Should show success notice if import on start succeeds and backup is enabled', async () => {
       mockLoadData.mockResolvedValueOnce({ importOnStart: true, backup: true } as any);
-      importHighlightsMock.mockResolvedValueOnce(aggregatedBooksAndAnnotations);
+      importHighlightsMock.mockResolvedValueOnce({
+        books: 4,
+        created: 4,
+        updated: 0,
+        unchanged: 0,
+        archived: 0,
+        retained: 0,
+        warnings: [],
+        failures: [],
+      });
 
       const onLayoutReadyPromise = new Promise<void>((resolve) => {
         (plugin.app.workspace.onLayoutReady as any).mockImplementationOnce(async (cb: () => Promise<void> | void) => {
@@ -148,7 +177,7 @@ describe('IBookHighlightsPlugin', () => {
       await plugin.onload();
       await onLayoutReadyPromise;
 
-      expect(NoticeMock).toHaveBeenCalledWith('Apple Books 摘录导入成功');
+      expect(NoticeMock).toHaveBeenCalledWith(expect.stringContaining('已处理'), 10000);
     });
 
     test('Should show error notice if import fails on start and backup is enabled', async () => {
@@ -165,21 +194,40 @@ describe('IBookHighlightsPlugin', () => {
       await plugin.onload();
       await onLayoutReadyPromise;
 
-      expect(backupAllHighlightsMock).toHaveBeenCalled();
-      expect(importHighlightsMock).toHaveBeenCalledWith(plugin.vault, expect.anything(), 'modify');
+      expect(importHighlightsMock).toHaveBeenCalledWith(
+        plugin.vault,
+        expect.objectContaining({ backup: true }),
+        expect.anything(),
+        undefined,
+      );
+      expect(importHighlightsMock).toHaveBeenCalledWith(plugin.vault, expect.anything(), 'modify', undefined);
       expect(NoticeMock).toHaveBeenCalledWith('[Apple Books Test Mock]:\n导入摘录失败，请打开开发者控制台查看详情（⌥ ⌘ I）', 0);
     });
   });
   describe('Ribbon action import', () => {
     test('Should backup and import all highlights on ribbon icon click if backup setting is enabled', async () => {
       mockLoadData.mockResolvedValueOnce({ backup: true } as any);
-      importHighlightsMock.mockResolvedValueOnce(aggregatedBooksAndAnnotations);
+      importHighlightsMock.mockResolvedValueOnce({
+        books: 4,
+        created: 4,
+        updated: 0,
+        unchanged: 0,
+        archived: 0,
+        retained: 0,
+        warnings: [],
+        failures: [],
+      });
       await plugin.onload();
       const callback = mockAddRibbonIcon.mock.calls[0][2];
       await callback({} as any);
-      expect(backupAllHighlightsMock).toHaveBeenCalled();
+      expect(importHighlightsMock).toHaveBeenCalledWith(
+        plugin.vault,
+        expect.objectContaining({ backup: true }),
+        expect.anything(),
+        undefined,
+      );
       expect(importHighlightsMock).toHaveBeenCalled();
-      expect(NoticeMock).toHaveBeenCalledWith('Apple Books 摘录导入成功');
+      expect(NoticeMock).toHaveBeenCalledWith(expect.stringContaining('已处理'), 10000);
     });
 
     test('Should throw error notice if import fails on ribbon icon click if backup setting is enabled', async () => {
@@ -188,33 +236,61 @@ describe('IBookHighlightsPlugin', () => {
       await plugin.onload();
       const callback = mockAddRibbonIcon.mock.calls[0][2];
       await callback({} as any);
-      expect(backupAllHighlightsMock).toHaveBeenCalled();
+      expect(importHighlightsMock).toHaveBeenCalledWith(
+        plugin.vault,
+        expect.objectContaining({ backup: true }),
+        expect.anything(),
+        undefined,
+      );
       expect(importHighlightsMock).toHaveBeenCalled();
       expect(NoticeMock).toHaveBeenCalledWith('[Apple Books Test Mock]:\n导入摘录失败，请打开开发者控制台查看详情（⌥ ⌘ I）', 0);
     });
 
     test('Should import all highlights on ribbon icon click if backup setting is disabled', async () => {
       mockLoadData.mockResolvedValueOnce({ backup: false } as any);
-      importHighlightsMock.mockResolvedValueOnce(aggregatedBooksAndAnnotations);
+      importHighlightsMock.mockResolvedValueOnce({
+        books: 4,
+        created: 4,
+        updated: 0,
+        unchanged: 0,
+        archived: 0,
+        retained: 0,
+        warnings: [],
+        failures: [],
+      });
 
       await plugin.onload();
       const callback = mockAddRibbonIcon.mock.calls[0][2];
       await callback({} as any);
       expect(backupAllHighlightsMock).not.toHaveBeenCalled();
-      expect(importHighlightsMock).toHaveBeenCalledWith(plugin.vault, expect.anything(), 'modify');
-      expect(NoticeMock).toHaveBeenCalledWith('Apple Books 摘录导入成功');
+      expect(importHighlightsMock).toHaveBeenCalledWith(plugin.vault, expect.anything(), 'modify', undefined);
+      expect(NoticeMock).toHaveBeenCalledWith(expect.stringContaining('已处理'), 10000);
     });
   });
 
   describe('Import all highlights command', () => {
     test('Should backup and import all highlights on addImportAllBooksCommand if backup setting is enabled', async () => {
       mockLoadData.mockResolvedValueOnce({ backup: true } as any);
-      importHighlightsMock.mockResolvedValueOnce(aggregatedBooksAndAnnotations);
+      importHighlightsMock.mockResolvedValueOnce({
+        books: 4,
+        created: 4,
+        updated: 0,
+        unchanged: 0,
+        archived: 0,
+        retained: 0,
+        warnings: [],
+        failures: [],
+      });
       await plugin.onload();
 
       const commandCallback = mockAddCommand.mock.calls[0][0].callback;
       await commandCallback({} as any);
-      expect(backupAllHighlightsMock).toHaveBeenCalled();
+      expect(importHighlightsMock).toHaveBeenCalledWith(
+        plugin.vault,
+        expect.objectContaining({ backup: true }),
+        expect.anything(),
+        undefined,
+      );
       expect(importHighlightsMock).toHaveBeenCalled();
     });
 
@@ -225,26 +301,49 @@ describe('IBookHighlightsPlugin', () => {
 
       const commandCallback = mockAddCommand.mock.calls[0][0].callback;
       await commandCallback({} as any);
-      expect(backupAllHighlightsMock).toHaveBeenCalled();
+      expect(importHighlightsMock).toHaveBeenCalledWith(
+        plugin.vault,
+        expect.objectContaining({ backup: true }),
+        expect.anything(),
+        undefined,
+      );
       expect(importHighlightsMock).toHaveBeenCalled();
       expect(NoticeMock).toHaveBeenCalledWith('[Apple Books Test Mock]:\n导入摘录失败，请打开开发者控制台查看详情（⌥ ⌘ I）', 0);
     });
 
     test('Should import all highlights on addImportAllBooksCommand if backup setting is disabled', async () => {
       mockLoadData.mockResolvedValueOnce({ backup: false } as any);
-      importHighlightsMock.mockResolvedValueOnce(aggregatedBooksAndAnnotations);
+      importHighlightsMock.mockResolvedValueOnce({
+        books: 4,
+        created: 4,
+        updated: 0,
+        unchanged: 0,
+        archived: 0,
+        retained: 0,
+        warnings: [],
+        failures: [],
+      });
 
       await plugin.onload();
       const commandCallback = mockAddCommand.mock.calls[0][0].callback;
       await commandCallback({} as any);
       expect(backupAllHighlightsMock).not.toHaveBeenCalled();
-      expect(importHighlightsMock).toHaveBeenCalledWith(plugin.vault, expect.anything(), 'modify');
-      expect(NoticeMock).toHaveBeenCalledWith('Apple Books 摘录导入成功');
+      expect(importHighlightsMock).toHaveBeenCalledWith(plugin.vault, expect.anything(), 'modify', undefined);
+      expect(NoticeMock).toHaveBeenCalledWith(expect.stringContaining('已处理'), 10000);
     });
 
     test('Registers the import-all command so it can be triggered from the palette/hotkey', async () => {
       mockLoadData.mockResolvedValueOnce({ backup: true } as any);
-      importHighlightsMock.mockResolvedValueOnce(aggregatedBooksAndAnnotations);
+      importHighlightsMock.mockResolvedValueOnce({
+        books: 4,
+        created: 4,
+        updated: 0,
+        unchanged: 0,
+        archived: 0,
+        retained: 0,
+        warnings: [],
+        failures: [],
+      });
       await plugin.onload();
 
       const command = mockAddCommand.mock.calls.map((call) => call[0]).find((cmd: any) => cmd.id === 'import-all-highlights');

@@ -1,5 +1,5 @@
 import { App, TFolder } from 'obsidian';
-import { afterEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { IBookHighlightsPluginSettings } from '../../../src/types';
 import { VaultManagement } from '../../../src/modules/vaultManagement';
 import { defaultTemplate } from '../../../src/settings';
@@ -8,29 +8,35 @@ describe('VaultManagement', () => {
   const mockApp = {
     vault: {
       getFolderByPath: vi.fn(),
+      getMarkdownFiles: vi.fn().mockReturnValue([]),
       getFileByPath: vi.fn(),
       createFolder: vi.fn(),
       create: vi.fn(),
       modify: vi.fn(),
       createBinary: vi.fn(),
       modifyBinary: vi.fn(),
+      readBinary: vi.fn().mockResolvedValue(new ArrayBuffer(0)),
       adapter: {
+        read: vi.fn().mockResolvedValue(''),
+        write: vi.fn(),
         list: vi.fn(),
         rename: vi.fn(),
+        copy: vi.fn(),
       },
     },
   } as unknown as App;
+
+  beforeEach(() => {
+    vi.mocked(mockApp.vault.adapter.read).mockResolvedValue('');
+    vi.mocked(mockApp.vault.getMarkdownFiles).mockReturnValue([]);
+  });
 
   const mockSettings: IBookHighlightsPluginSettings = {
     highlightsFolder: 'ibooks-highlights',
     backup: false,
     importOnStart: false,
-    highlightsSortingCriterion: 'creationDateOldToNew',
     template: defaultTemplate,
     filenameTemplate: '{{{bookTitle}}}',
-    keepMeSectionOpeningDelimiter: '%% keep-me %%',
-    keepMeSectionClosingDelimiter: '%% /keep-me %%',
-    keepMeSectionData: {},
   };
 
   afterEach(() => {
@@ -227,7 +233,11 @@ describe('VaultManagement', () => {
       });
 
       await vaultManagement.backupAllHighlights();
-      expect(mockApp.vault.adapter.rename).toHaveBeenCalledWith('ibooks-highlights', 'ibooks-highlights-bk-1704060001');
+      expect(mockApp.vault.adapter.copy).toHaveBeenCalledWith(
+        'ibooks-highlights/Book Title.md',
+        'ibooks-highlights-bk-1704060001/Book Title.md',
+      );
+      expect(mockApp.vault.adapter.rename).not.toHaveBeenCalled();
       expect((await mockApp.vault.adapter.list('ibooks-highlights-bk-1704060001')).files).toHaveLength(2);
       expect((await mockApp.vault.adapter.list('ibooks-highlights-bk-1704060001')).files).toEqual([
         'ibooks-highlights-bk-1704060001/Book Title.md',
@@ -266,9 +276,9 @@ describe('VaultManagement', () => {
 
       await vaultManagement.backupAllHighlights();
 
-      expect(mockApp.vault.adapter.rename).toHaveBeenCalledWith(
-        '2 - Literature Notes 📝/Apple Books',
-        '2 - Literature Notes 📝/Apple Books-bk-1704060001',
+      expect(mockApp.vault.adapter.copy).toHaveBeenCalledWith(
+        '2 - Literature Notes 📝/Apple Books/Book Title.md',
+        '2 - Literature Notes 📝/Apple Books-bk-1704060001/Book Title.md',
       );
 
       expect((await mockApp.vault.adapter.list('2 - Literature Notes 📝/Apple Books-bk-1704060001')).files).toHaveLength(3);
@@ -301,30 +311,10 @@ describe('VaultManagement', () => {
     });
   });
 
-  describe('backupBookFile', () => {
-    test('Should backup book file in default highlights folder', async () => {
-      const vaultManagement = new VaultManagement(mockApp, mockSettings);
-      vi.spyOn(Date, 'now').mockReturnValue(1704060001);
-
-      await vaultManagement.backupBookFile({ path: 'ibooks-highlights/Book Title.md', basename: 'Book Title' } as any);
-
-      expect(mockApp.vault.adapter.rename).toHaveBeenCalledWith(
-        'ibooks-highlights/Book Title.md',
-        'ibooks-highlights/Book Title-bk-1704060001.md',
-      );
-    });
-
-    test('Should backup book file in custom highlights folder', async () => {
-      const customSettings = { ...mockSettings, highlightsFolder: '2 - Literature Notes 📝/Apple Books' };
-      const vaultManagement = new VaultManagement(mockApp, customSettings);
-      vi.spyOn(Date, 'now').mockReturnValue(1704060001);
-
-      await vaultManagement.backupBookFile({ path: '2 - Literature Notes 📝/Apple Books/Book Title.md', basename: 'Book Title' } as any);
-
-      expect(mockApp.vault.adapter.rename).toHaveBeenCalledWith(
-        '2 - Literature Notes 📝/Apple Books/Book Title.md',
-        '2 - Literature Notes 📝/Apple Books/Book Title-bk-1704060001.md',
-      );
-    });
+  test('single-book backup includes cards and covers through the snapshot routine', async () => {
+    const manager = new VaultManagement(mockApp, mockSettings);
+    const snapshot = vi.spyOn(manager, 'backupAllHighlights').mockResolvedValue(null);
+    await manager.backupBookFile({ path: 'ibooks-highlights/Book.md' } as any);
+    expect(snapshot).toHaveBeenCalledOnce();
   });
 });

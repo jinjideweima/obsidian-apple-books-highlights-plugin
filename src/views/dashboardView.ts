@@ -1,7 +1,10 @@
 import { type App, ItemView, Platform, setIcon, WorkspaceLeaf } from 'obsidian';
 import type IBookHighlightsPlugin from '../../main';
 import type { IBookNoteSummary, IHighlightCard } from '../types';
+import { showImportResult } from '../modals/importResult';
+import { IBookHighlightsPluginSearchModal } from '../modals/searchSuggestions';
 import { getBookSummaries, getHighlightCards } from '../modules/highlightRepository';
+import { watchVault } from '../utils/watchVault';
 import { openCardsView } from './cardsView';
 
 export const DASHBOARD_VIEW_TYPE = 'apple-books-knowledge-dashboard-view';
@@ -184,7 +187,10 @@ const renderDashboardContent = async (
   contentEl.toggleClass('abkc-mobile', Platform.isMobile);
 
   try {
-    const [books, cards] = await Promise.all([getBookSummaries(app, plugin.settings), getHighlightCards(app, plugin.settings)]);
+    const [books, cards] = await Promise.all([
+      getBookSummaries(app, plugin.settings),
+      getHighlightCards(app, plugin.settings).then((allCards) => allCards.filter((card) => !card.archived)),
+    ]);
     const stats = getStats(books, cards);
     const randomCards = getRandomCards(cards);
 
@@ -200,6 +206,21 @@ const renderDashboardContent = async (
     heroActions.createEl('button', { text: '浏览书籍', cls: 'abkc-dashboard-secondary' }).addEventListener('click', async () => {
       await openHighlightsFolder(app, plugin);
     });
+
+    const action = (label: string, run: () => void | Promise<unknown>) =>
+      heroActions.createEl('button', { text: label, cls: 'abkc-dashboard-secondary' }).addEventListener('click', () => {
+        void run();
+      });
+    if (!Platform.isMobile) {
+      action('导入一本', () => new IBookHighlightsPluginSearchModal(app, plugin).open());
+      action('导入全部', async () => {
+        const { backupAndImport } = await import('../utils/backupAndImportFlow');
+        await backupAndImport(plugin, plugin.settings);
+        await onRefresh();
+      });
+    }
+    action('已移除摘录', () => openCardsView(plugin, { archived: true }));
+    action('最近导入结果', () => showImportResult(plugin));
 
     const statGrid = hero.createDiv({ cls: 'abkc-dashboard-stats' });
     renderStat(statGrid, '书籍', stats.bookCount, 'book', '#0a84ff', async () => {
@@ -273,6 +294,7 @@ export class DashboardView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
+    watchVault(this.app, this, () => this.render());
     await this.render();
   }
 
@@ -289,6 +311,7 @@ export const openDashboardView = async (plugin: IBookHighlightsPlugin): Promise<
   const existingLeaves = plugin.app.workspace.getLeavesOfType(DASHBOARD_VIEW_TYPE);
 
   if (existingLeaves.length > 0) {
+    await (existingLeaves[0].view as DashboardView).render();
     plugin.app.workspace.revealLeaf(existingLeaves[0]);
     return;
   }

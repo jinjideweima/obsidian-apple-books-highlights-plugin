@@ -1,14 +1,15 @@
-import { Notice, Platform, Plugin } from 'obsidian';
+import { Notice, Platform, Plugin, MarkdownRenderChild } from 'obsidian';
 import type { IBookHighlightsPluginSettings } from './src/types';
+import { showImportResult } from './src/modals/importResult';
 import { getHighlightCards } from './src/modules/highlightRepository';
 import { VaultManagement } from './src/modules/vaultManagement';
 import { defaultPluginSettings, IBookHighlightsSettingTab } from './src/settings';
-import { saveKeepMeSectionData } from './src/utils/manageKeepMeSection';
 import { showFailedImportNotice, showErrorInConsole } from './src/utils/notificationCenter';
-import { cleanupCardRenderer, renderCardsBoard } from './src/views/cardRenderer';
+import { watchVault } from './src/utils/watchVault';
+import { cleanupCardRenderer, cleanupCardsBoard, renderCardsBoard } from './src/views/cardRenderer';
 import { CARDS_VIEW_TYPE, CardsView, openCardsView } from './src/views/cardsView';
 import { DASHBOARD_VIEW_TYPE, DashboardView, openDashboardView, renderDashboard } from './src/views/dashboardView';
-import { createLibraryView } from './src/views/libraryBase';
+import { createLibraryView, markLibraryLeaves, migrateLibrarySnippet, migrateLibraryBase } from './src/views/libraryBase';
 
 const showNotice = (message: string, timeout?: number): void => {
   const notice = new Notice(message, timeout);
@@ -32,7 +33,17 @@ export default class IBookHighlightsPlugin extends Plugin {
     addDashboardRibbonAction(this);
     addOpenDashboardCommand(this);
     addOpenCardsWallCommand(this);
+    this.addCommand({
+      id: 'open-removed-highlights',
+      name: '打开已移除摘录（恢复或清理）',
+      callback: () => openCardsView(this, { archived: true }),
+    });
     addCreateLibraryViewCommand(this);
+    this.addCommand({
+      id: 'show-last-import',
+      name: '查看最近导入结果',
+      callback: () => showImportResult(this),
+    });
     registerCardsView(this);
     registerDashboardView(this);
     registerCardsCodeBlock(this);
@@ -45,11 +56,12 @@ export default class IBookHighlightsPlugin extends Plugin {
       });
     }
 
-    this.registerEvent(
-      this.app.workspace.on('quick-preview', async (file, data) => {
-        await saveKeepMeSectionData(file, data, this, this.settings);
-      }),
-    );
+    this.app.workspace.onLayoutReady(() => {
+      markLibraryLeaves(this);
+      void migrateLibraryBase(this).catch((error) => console.warn('Apple Books: 图书馆过滤规则迁移失败', error));
+      void migrateLibrarySnippet(this).catch((error) => console.warn('Apple Books: 封面样式迁移失败', error));
+    });
+    this.registerEvent(this.app.workspace.on('layout-change', () => markLibraryLeaves(this)));
   }
 
   onunload() {
@@ -61,6 +73,12 @@ export default class IBookHighlightsPlugin extends Plugin {
   async loadSettings() {
     this.settings = Object.assign({}, defaultPluginSettings, (await this.loadData()) as Partial<IBookHighlightsPluginSettings>);
 
+    // Preserve custom templates while correcting the old default's unsafe YAML interpolation.
+    this.settings.template = this.settings.template
+      .replace('title: "{{{bookTitle}}}"', 'title: {{{yaml bookTitle}}}')
+      .replace('author: "{{{bookAuthor}}}"', 'author: {{{yaml bookAuthor}}}')
+      .replace('cover: "[[{{{coverImagePath}}}]]"', 'cover: {{{yamlLink coverImagePath}}}')
+      .replace('cover: "{{{bookCoverUrl}}}"', 'cover: {{{yaml bookCoverUrl}}}');
     return this.settings;
   }
 
@@ -173,13 +191,28 @@ function registerDashboardView(plugin: IBookHighlightsPlugin) {
 }
 
 function registerCardsCodeBlock(plugin: IBookHighlightsPlugin) {
-  plugin.registerMarkdownCodeBlockProcessor('apple-books-board', async (source, el) => {
+  plugin.registerMarkdownCodeBlockProcessor('apple-books-board', async (source, el, ctx) => {
+    const backupRoot = ctx.sourcePath.match(/^(.*-bk-\d+)\//)?.[1];
     const bookId = source.match(/book_id:\s*(.+)/)?.[1]?.trim();
     const render = async () => {
       try {
-        const cards = await getHighlightCards(plugin.app, plugin.settings);
-
-        renderCardsBoard(plugin.app, el, cards, { bookId }, { onRefresh: render });
+        const cards = await getHighlightCards(
+          plugin.app,
+          backupRoot ? { ...plugin.settings, highlightsFolder: backupRoot } : plugin.settings,
+        );
+        renderCardsBoard(
+          plugin.app,
+          el,
+          cards,
+          { bookId },
+          {
+            onRefresh: render,
+            readOnly: Boolean(backupRoot),
+            snapshotLabel: backupRoot
+              ? `备份快照 · ${new Date(Number(backupRoot.match(/-bk-(\d+)$/)?.[1])).toLocaleString()} · 只读`
+              : undefined,
+          },
+        );
       } catch (error) {
         el.empty();
         el.createDiv({
@@ -190,12 +223,23 @@ function registerCardsCodeBlock(plugin: IBookHighlightsPlugin) {
       }
     };
 
+    const child = new MarkdownRenderChild(el);
+    ctx.addChild(child);
+    child.register(() => cleanupCardsBoard(el));
+    watchVault(plugin.app, child, render);
     await render();
   });
 }
 
 function registerDashboardCodeBlock(plugin: IBookHighlightsPlugin) {
-  plugin.registerMarkdownCodeBlockProcessor('apple-books-dashboard', async (_source, el) => {
+  plugin.registerMarkdownCodeBlockProcessor('apple-books-dashboard', async (_source, el, ctx) => {
+    if (/-bk-\d+\//.test(ctx.sourcePath)) {
+      el.createDiv({ text: '历史备份：请打开本备份中的书籍页面查看只读卡片。' });
+      return;
+    }
+    const child = new MarkdownRenderChild(el);
+    ctx.addChild(child);
+    watchVault(plugin.app, child, () => renderDashboard(plugin, el));
     await renderDashboard(plugin, el);
   });
 }

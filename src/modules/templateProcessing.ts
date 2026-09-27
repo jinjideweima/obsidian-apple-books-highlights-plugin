@@ -41,3 +41,6 @@ Handlebars.registerHelper('padIndex', (index) => {
 Handlebars.registerHelper('displayIndex', (index) => {
   return Number(index) + 1;
 });
+
+Handlebars.registerHelper('yaml', (value) => JSON.stringify(value == null ? '' : String(value)));
+Handlebars.registerHelper('yamlLink', (value) => JSON.stringify(`[[${value}]]`));

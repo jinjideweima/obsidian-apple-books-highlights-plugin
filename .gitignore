@@ -29,3 +29,5 @@ docs/.vitepress/cache
 
 # VS Code
 .vscode/tasks.json
+# Local acceptance notes and packaging (personal; not published)
+acceptance

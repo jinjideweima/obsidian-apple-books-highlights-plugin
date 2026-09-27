@@ -1,12 +1,14 @@
 import { ItemView, WorkspaceLeaf } from 'obsidian';
 import type IBookHighlightsPlugin from '../../main';
 import { getHighlightCards } from '../modules/highlightRepository';
-import { renderCardsBoard } from './cardRenderer';
+import { watchVault } from '../utils/watchVault';
+import { renderCardsBoard, cleanupCardsBoard } from './cardRenderer';
 
 export const CARDS_VIEW_TYPE = 'apple-books-knowledge-cards-view';
 
 export interface CardsViewState extends Record<string, unknown> {
   onlyFavorite?: boolean;
+  archived?: boolean;
   onlyUnreviewed?: boolean;
   onlyWithAppleNote?: boolean;
   onlyWithChapter?: boolean;
@@ -33,7 +35,12 @@ export class CardsView extends ItemView {
     return 'layout-dashboard';
   }
 
+  async onClose(): Promise<void> {
+    cleanupCardsBoard(this.contentEl);
+  }
+
   async onOpen(): Promise<void> {
+    watchVault(this.app, this, () => this.render());
     await this.render();
   }
 
@@ -47,6 +54,7 @@ export class CardsView extends ItemView {
         {},
         {
           onRefresh: () => this.render(),
+          initialArchived: Boolean(this.state.archived),
           initialOnlyFavorite: Boolean(this.state.onlyFavorite),
           initialOnlyUnreviewed: Boolean(this.state.onlyUnreviewed),
           initialOnlyWithAppleNote: Boolean(this.state.onlyWithAppleNote),
