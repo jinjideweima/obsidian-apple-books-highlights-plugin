@@ -62,9 +62,14 @@ export const importHighlights = async (
         if (vault.getFilePath(filename)) throw new Error('书籍文件名冲突，请检查：' + filename);
       }
       const path = `${vault.getHighlightsFolder()}/${filename}.md`;
-      const blocking = vault.blockingFile(book.bookId, [path, `${vault.getHighlightsFolder()}/${safeRelativePath(filenameTemplate(namingData))}.md`]);
+      const blocking = vault.blockingFile(book.bookId, [
+        path,
+        `${vault.getHighlightsFolder()}/${safeRelativePath(filenameTemplate(namingData))}.md`,
+      ]);
       if (blocking) {
-        result.failures.push(`《${book.bookTitle}》：${blocking} 的属性格式无法解析，已跳过这本书以免重复或覆盖。修复该文件的属性后再导入。`);
+        result.failures.push(
+          `《${book.bookTitle}》：${blocking} 的属性格式无法解析，已跳过这本书以免重复或覆盖。修复该文件的属性后再导入。`,
+        );
         continue;
       }
       let existing = await vault.readFileIfExists(path);

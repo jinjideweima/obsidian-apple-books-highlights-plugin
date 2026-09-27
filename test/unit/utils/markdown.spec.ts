@@ -30,6 +30,6 @@ test('valid quoting is left alone and other broken YAML still fails', () => {
 
 test('the book ID is recovered from notes whose properties cannot be parsed', () => {
   expect(rawBookId('---\ntitle: [broken\nbook_id: "0042"\n---\n')).toBe('0042');
-  expect(rawBookId("---\nbook_id: abc\n---\n")).toBe('abc');
+  expect(rawBookId('---\nbook_id: abc\n---\n')).toBe('abc');
   expect(rawBookId('no properties\nbook_id: 1')).toBe('');
 });
